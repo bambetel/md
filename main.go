@@ -8,8 +8,10 @@ import (
 
 func main() {
 	fmt.Println("vim-go")
-	n := MdNode{Tag: "a", Children: []MdNode{
-		{Tag: "strong", Text: "A text node in an anchor"},
+	n := MdNode{Type: Element, Tag: "a", Children: []MdNode{
+		{Type: Element, Tag: "strong", Text: "A text node in an anchor"},
+		{Type: Attr, Tag: "href", Text: "https://www.wp.pl/"},
+		{Type: Attr, Tag: "title", Text: "Wirtualna Polska"},
 	}}
 	WriteHTML(n, os.Stdout)
 

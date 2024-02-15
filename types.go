@@ -1,16 +1,11 @@
 package main
 
-// TODO: handling attributes
-// for markdown:
-// - a href
-// - img src
-
 type MdNode struct {
+	Type     MdNodeType
 	Children []MdNode
-	Tag      string   // or attribute name for attr node
-	Attr     []string // or attr node
-	Text     string   // only for text nodes
-	Ready    bool     // already parsed
+	Tag      string // or attribute name for attr node
+	Text     string // only for text nodes
+	Ready    bool   // already parsed
 }
 
 type MdNodeType int

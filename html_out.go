@@ -7,8 +7,12 @@ import (
 
 func WriteHTML(n MdNode, w io.Writer) error {
 	// TODO if using MdNode.Ready, check if ready/parsed, else error
-	// TODO get attrs from []Attr or child Attr nodes
-	attr := map[string]string{"href": "https://www.wp.pl/", "title": "Wirtualna Polska"}
+	attr := make(map[string]string, 0)
+	for _, c := range n.Children {
+		if c.Type == Attr {
+			attr[c.Tag] = c.Text
+		}
+	}
 	w.Write([]byte(fmt.Sprintf("<%s", n.Tag)))
 	for k, v := range attr {
 		w.Write([]byte(fmt.Sprintf(" %s=\"%s\"", k, v)))
@@ -22,7 +26,9 @@ func WriteHTML(n MdNode, w io.Writer) error {
 		w.Write([]byte(n.Text))
 	} else {
 		for _, c := range n.Children {
-			WriteHTML(c, w)
+			if c.Type == Element {
+				WriteHTML(c, w)
+			}
 		}
 	}
 
