@@ -16,7 +16,7 @@ func WriteHTML(n MdNode, w io.Writer) error {
 	w.Write([]byte(">"))
 
 	// innerHTML
-	// TODO how to determine if use MdNode.Text
+	// TODO how to determine (by MdNodeType?) if use MdNode.Text
 	// - or a function MdNode.HTML()
 	if n.Children == nil {
 		w.Write([]byte(n.Text))

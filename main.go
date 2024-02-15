@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 )
 
@@ -51,4 +52,15 @@ func main() {
 	fmt.Println(blockType(l), " <- ", l)
 	l = "- [ ] Not checked"
 	fmt.Println(blockType(l), " <- ", l)
+
+	fmt.Println("\n*****")
+
+	f, err := ReadMdFile("testdata/tabs2.md")
+	if err != nil {
+		log.Fatalf("Error reading file: %s", err)
+	}
+	// fmt.Printf("MD file:\n%q\n", f)
+	for i, l := range f {
+		fmt.Printf("%03d: %s\n", i, l)
+	}
 }
