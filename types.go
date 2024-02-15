@@ -1,4 +1,4 @@
-package main
+package md
 
 type MdNode struct {
 	Type     MdNodeType

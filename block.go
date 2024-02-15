@@ -1,4 +1,4 @@
-package main
+package md
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 // Functions below take a line with normalized spacing
 // The indentations up to 3 spaces are already trimmed
 // as non-relevant (always?)
-func blockType(l string) string {
+func BlockType(l string) string {
 	if hn := isHeading(l); hn > 0 {
 		return fmt.Sprintf("h%d", hn)
 	} else if isFence(l) != "" {
@@ -73,7 +73,6 @@ func isHR(l string) bool {
 
 func isLi(l string) byte {
 	i := 0
-	prefixLen := 0
 	if len(l) < 3 { // minimal list item is `- a`
 		return 0
 	}
@@ -94,20 +93,8 @@ func isLi(l string) byte {
 	if i != 0 {
 		if l[i] == '.' && l[i+1] == ' ' { // OL punctor after numbers
 			// TODO require any list item content!
-			fmt.Println("Found actual OL: ", l)
 			return '1'
 		}
-	}
-	// UL or checklist
-
-	for i = 0; i < len(l); i++ {
-		if isSpace(l[i]) {
-			prefixLen = i
-			break
-		}
-	}
-	if prefixLen > 0 {
-		fmt.Printf("Found prefix %q", l[:prefixLen])
 	}
 	return 0
 }
