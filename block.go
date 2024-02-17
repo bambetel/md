@@ -2,6 +2,7 @@ package md
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -85,6 +86,13 @@ func isLi(l string) byte {
 		}
 		return l[0]
 	}
+	// check OL `a.`
+	if isOLLower(l) {
+		return 'a'
+	}
+	if isOLUpper(l) {
+		return 'A'
+	}
 	// check for OL first
 	// minimal OL item: `1. a`
 	for i < len(l)-1 && isDigit(l[i]) {
@@ -97,6 +105,23 @@ func isLi(l string) byte {
 		}
 	}
 	return 0
+}
+
+var (
+	reOLLower, reOLUpper *regexp.Regexp
+)
+
+func init() {
+	reOLLower = regexp.MustCompile("^[a-z]\\.\\s+\\S+")
+	reOLUpper = regexp.MustCompile("^[A-Z]\\.\\s+\\S+")
+}
+
+func isOLLower(l string) bool {
+	return reOLLower.MatchString(l)
+}
+
+func isOLUpper(l string) bool {
+	return reOLUpper.MatchString(l)
 }
 
 func isListPunctor(c byte) bool {

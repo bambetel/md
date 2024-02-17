@@ -16,6 +16,7 @@ func MdTok(lines []string, pre string) {
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		fmt.Print(c(fmt.Sprintf("[%s:%d]", pre, i)))
+
 		// blank line
 		if len(l) < 1 || isBlankLine(l) {
 			fmt.Println(i, "↔")
@@ -24,8 +25,11 @@ func MdTok(lines []string, pre string) {
 
 		// consume a blockquote
 		if l[0] == '>' {
-			j := i                                           // to be set as an element after list end
-			for ; j < len(lines) && len(lines[j]) > 0; j++ { // TODO safeguard len(lines) - 1 ???
+			j := i // to be set as an element after list end
+			for ; j < len(lines); j++ {
+				if len(lines[j]) < 1 {
+					break
+				}
 				if lines[j][0] != '>' {
 					break
 				}
@@ -33,14 +37,48 @@ func MdTok(lines []string, pre string) {
 
 			block := make([]string, 0, 10)
 			for k := i; k < j; k++ {
-				block = append(block, lines[k][2:]) // TODO handling `>`, len=1
+				block = append(block, lines[k][min(len(lines[k]), 2):])
 			}
+
 			MdTok(block, pre+">>>>")
 			i = j - 1
 			continue
 		}
 
 		t := BlockType(l)
+		// consume a list OR same-level lists, then split by marker and blank lines
+		// list item are taken with the helper blank lines (?)
+		if strings.HasPrefix(t, "li") {
+			fmt.Println("LIST ITEM")
+			j := i
+			for ; j < len(lines); j++ {
+				tt := BlockType(lines[j])
+				// TODO abstracted consume hard-wrapped block (?)
+				if tt != t {
+					// TODO NOTE: blank line lookforward, takes neighbour black lines to the list
+					if tt != "p" {
+						break
+					}
+					if strings.HasPrefix(lines[j], " ") {
+						if isLi(strings.TrimSpace(lines[j])) != 0 {
+							fmt.Println("LI sublist candidate: ", tt, lines[j])
+						} else {
+							fmt.Println("LI sub candidate: ", tt, lines[j])
+						}
+					} else {
+						// child item
+						fmt.Println("ELSE: ", tt, lines[j])
+					}
+				} else {
+					fmt.Println("LI sibling: ", tt, lines[j])
+				}
+			}
+			block := lines[i:j]
+			fmt.Printf("@LIST %d %q\n", len(block), block)
+			i = j - 1
+			continue
+		}
+
 		p := getLinePrefix(l)
 		fmt.Print(pre)
 		fmt.Print(fmt.Sprintf("%3d", i), r(fmt.Sprintf("%5s ", t)))
