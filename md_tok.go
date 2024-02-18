@@ -11,13 +11,15 @@ import (
 // characters using tabstop value.
 
 type mdLine struct {
+	Line   int
+	Join   bool
 	Prefix string
 	Marker string
 	Text   string
 }
 
-func BlankLine() mdLine {
-	return mdLine{"", "", ""}
+func BlankLine(nr int) mdLine {
+	return mdLine{nr, false, "", "", ""}
 }
 
 // For now, just playground
@@ -30,8 +32,8 @@ func MdTok(lines []string, pre string) []mdLine {
 		l := lines[i]
 
 		// blank line
-		if len(l) < 1 || isBlankLine(l) {
-			out = append(out, BlankLine())
+		if isBlankLine(l) {
+			out = append(out, BlankLine(i))
 			continue
 		}
 
@@ -57,18 +59,44 @@ func MdTok(lines []string, pre string) []mdLine {
 		// 	continue
 		// }
 
+		join := false
 		p := getLinePrefix(l)
 		l = l[len(p):]
 		mark, l := stripLineMark(l)
-		item := mdLine{p, mark, l}
-		out = append(out, item)
+
+		if mark == "```" {
+			lang := strings.TrimSpace(l)
+			fmt.Println("Found block in language:", lang)
+			start := i
+			i++
+			code := ""
+			for i < len(lines) && strings.HasPrefix(getLinePrefix(lines[i]), p) && strings.Index(lines[i], "```") == -1 {
+				// TODO error if unclosed fence (within line prefix)
+				code += (lines[i][len(p):] + "\n")
+				i++
+			}
+			fmt.Printf("Found fenced code block: %q\n", code)
+			item := mdLine{start, false, p, mark, code}
+			out = append(out, item)
+			continue
+		} else {
+			if i > 0 && mark == "" {
+				if out[len(out)-1].Text != "" && strings.HasPrefix(p, out[len(out)-1].Prefix) {
+					join = true
+				}
+			}
+			item := mdLine{i, join, p, mark, l}
+			out = append(out, item)
+		}
 	}
+
 	return out
 }
 
 // only a block mark or also blockquote?
 // handling: HR, H1..6, LI 1., -, a., A., - [x],
 // (?): ~~~/```
+// TODO (?) return possible tag (?)
 func stripLineMark(line string) (string, string) {
 	if len(line) < 2 {
 		return "", line
@@ -76,18 +104,23 @@ func stripLineMark(line string) (string, string) {
 	mark := ""
 	reH := regexp.MustCompile("^(#+)\\s+")
 	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+")
-	if isHR(line) {
+
+	if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
+		mark = "```" // normalize line[0:3]
+	} else if isHR(line) {
 		return line, ""
 	} else if m := reH.FindString(line); len(m) > 0 {
 		mark = m
 	} else if m := reLi.FindString(line); len(m) > 0 {
 		mark = m
 	}
+
 	if len(mark) == len(line) {
 		// block type indicators (except for hr) require non-empty content
 		// otherwise it is just a line of text
 		return "", line
 	}
+
 	return line[:len(mark)], line[len(mark):]
 }
 
