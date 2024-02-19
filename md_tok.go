@@ -155,19 +155,6 @@ func isMdLinePrefixChar(c byte) bool {
 	return c == ' ' || c == '>'
 }
 
-// replace characters in a string based on a map
-func tr(s string, replace map[rune]rune) string {
-	sb := strings.Builder{}
-	for i, c := range s {
-		if v, found := replace[c]; found {
-			sb.WriteRune(v)
-		} else {
-			sb.WriteByte(s[i])
-		}
-	}
-	return sb.String()
-}
-
 func isBlankLine(l string) bool {
 	for _, c := range l {
 		if c != ' ' && c != '\t' {
