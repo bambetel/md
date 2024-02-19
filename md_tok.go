@@ -16,10 +16,11 @@ type mdLine struct {
 	Prefix string
 	Marker string
 	Text   string
+	Tag    string
 }
 
 func BlankLine(nr int) mdLine {
-	return mdLine{nr, false, "", "", ""}
+	return mdLine{nr, false, "", "", "", ""}
 }
 
 // For now, just playground
@@ -62,7 +63,7 @@ func MdTok(lines []string, pre string) []mdLine {
 		join := false
 		p := getLinePrefix(l)
 		l = l[len(p):]
-		mark, l := stripLineMark(l)
+		mark, l, tag := stripLineMark(l)
 
 		if mark == "```" {
 			lang := strings.TrimSpace(l)
@@ -76,7 +77,7 @@ func MdTok(lines []string, pre string) []mdLine {
 				i++
 			}
 			fmt.Printf("Found fenced code block: %q\n", code)
-			item := mdLine{start, false, p, mark, code}
+			item := mdLine{start, false, p, mark, code, "pre>code"}
 			out = append(out, item)
 			continue
 		} else {
@@ -85,7 +86,7 @@ func MdTok(lines []string, pre string) []mdLine {
 					join = true
 				}
 			}
-			item := mdLine{i, join, p, mark, l}
+			item := mdLine{i, join, p, mark, l, tag}
 			out = append(out, item)
 		}
 	}
@@ -97,44 +98,35 @@ func MdTok(lines []string, pre string) []mdLine {
 // handling: HR, H1..6, LI 1., -, a., A., - [x],
 // (?): ~~~/```
 // TODO (?) return possible tag (?)
-func stripLineMark(line string) (string, string) {
+func stripLineMark(line string) (mark, text, tag string) {
 	if len(line) < 2 {
-		return "", line
+		return "", line, ""
 	}
-	mark := ""
 	reH := regexp.MustCompile("^(#+)\\s+")
 	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+")
+	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
 	if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
-		mark = "```" // normalize line[0:3]
+		mark, tag = "```", "pre>code" // normalize line[0:3]
+	} else if strings.HasPrefix(line, ": ") { // extension dl > (dt + dd+)+
+		mark, tag = ": ", "dd"
 	} else if isHR(line) {
-		return line, ""
+		return line, "", "hr"
 	} else if m := reH.FindString(line); len(m) > 0 {
-		mark = m
+		mark, tag = m, "hn"
 	} else if m := reLi.FindString(line); len(m) > 0 {
-		mark = m
+		mark, tag = m, "li?"
+	} else if m := reRef.FindString(line); len(m) > 0 {
+		mark, tag = m, "ref"
 	}
 
+	// block type indicators (except for hr) require non-empty content
+	// otherwise it is just a line of text
 	if len(mark) == len(line) {
-		// block type indicators (except for hr) require non-empty content
-		// otherwise it is just a line of text
-		return "", line
+		return "", line, ""
 	}
 
-	return line[:len(mark)], line[len(mark):]
-}
-
-func getLineMark(line string) string {
-	if isHR(line) {
-		return "---"
-	}
-	if isHeading(line) > 0 {
-		return "H"
-	}
-	if listType := isLi(line); listType != 0 {
-		return string(listType)
-	}
-	return ""
+	return line[:len(mark)], line[len(mark):], tag
 }
 
 // Get Md line prefix that consists of whitespace and blockquote markers.
