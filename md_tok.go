@@ -115,7 +115,7 @@ func stripLineMark(line string) (mark, text, tag string) {
 		return line, "", "hr"
 	case line[0] == '#':
 		if m := reH.FindString(line); len(m) > 0 {
-			mark, tag = m, "hn"
+			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
 		}
 	case line[0] == '[':
 		if m := reRef.FindString(line); len(m) > 0 {
