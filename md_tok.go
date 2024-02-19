@@ -106,22 +106,29 @@ func stripLineMark(line string) (mark, text, tag string) {
 	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
-	if strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~") {
+	switch {
+	case strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~"):
 		mark, tag = "```", "pre>code" // normalize line[0:3]
-	} else if strings.HasPrefix(line, ": ") { // extension dl > (dt + dd+)+
+	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		mark, tag = ": ", "dd"
-	} else if isHR(line) {
+	case isHR(line):
 		return line, "", "hr"
-	} else if m := reH.FindString(line); len(m) > 0 {
-		mark, tag = m, "hn"
-	} else if m := reLi.FindString(line); len(m) > 0 {
-		mark, tag = m, "li?"
-	} else if m := reRef.FindString(line); len(m) > 0 {
-		mark, tag = m, "ref"
+	case line[0] == '#':
+		if m := reH.FindString(line); len(m) > 0 {
+			mark, tag = m, "hn"
+		}
+	case line[0] == '[':
+		if m := reRef.FindString(line); len(m) > 0 {
+			mark, tag = m, "ref"
+		}
+	default:
+		if m := reLi.FindString(line); len(m) > 0 {
+			mark, tag = m, "li?"
+		}
 	}
 
 	// block type indicators (except for hr) require non-empty content
-	// otherwise it is just a line of text
+	// otherwise it is just a line of text (block type depending on context)
 	if len(mark) == len(line) {
 		return "", line, ""
 	}
