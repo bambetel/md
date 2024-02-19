@@ -65,13 +65,13 @@ func MdTok(lines []string, pre string) []mdLine {
 		l = l[len(p):]
 		mark, l, tag := stripLineMark(l)
 
-		if mark == "```" {
+		if mark == "```" || mark == "~~~" {
 			lang := strings.TrimSpace(l)
 			fmt.Println("Found block in language:", lang)
 			start := i
 			i++
 			code := ""
-			for i < len(lines) && strings.HasPrefix(getLinePrefix(lines[i]), p) && strings.Index(lines[i], "```") == -1 {
+			for i < len(lines) && strings.HasPrefix(getLinePrefix(lines[i]), p) && strings.Index(strings.TrimSpace(lines[i]), mark) == -1 {
 				// TODO error if unclosed fence (within line prefix)
 				code += (lines[i][len(p):] + "\n")
 				i++
@@ -107,8 +107,8 @@ func stripLineMark(line string) (mark, text, tag string) {
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
 	switch {
-	case strings.HasPrefix(line, "```") || strings.HasPrefix(line, "~~~"):
-		mark, tag = "```", "pre>code" // normalize line[0:3]
+	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
+		mark, tag = line[:3], "pre>code" // normalize line[0:3]
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		mark, tag = ": ", "dd"
 	case isHR(line):
