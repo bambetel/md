@@ -7,6 +7,10 @@ import (
 
 func WriteHTML(n MdNode, w io.Writer) error {
 	// TODO if using MdNode.Ready, check if ready/parsed, else error
+	if n.Tag == "hr" {
+		w.Write([]byte("<hr>"))
+		return nil
+	}
 	attr := make(map[string]string, 0)
 	for _, c := range n.Children {
 		if c.Type == Attr {
