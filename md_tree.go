@@ -10,12 +10,14 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 		Tag:  tag,
 		Type: Element,
 	}
-	var prev *MdNode
+	var prev *MdNode // for line joining TODO even necessary?
+	var currList *MdNode
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		fmt.Printf("MdTree line %3d [%s] %v \n", i, l.LimitPrefix(depth), l)
-		if l.Text == "" {
+		if l.IsBlank() {
+			currList = nil
 			continue
 		}
 
@@ -50,13 +52,29 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 			Tag:  tag,
 			Text: l.Text,
 		}
-		// list handling
-		// - if new li kind (type, prefix) - close if previous, open new list
-		// - build a li, consume line and container if exists
 
-		// *** Test before solving line joining
-		if lines[i].Tag == "li" {
+		if lines[i].Tag != "li" {
+			currList = nil
+			root.Children = append(root.Children, n)
+			prev = &root.Children[len(root.Children)-1]
+		} else {
+			// list handling
+			// - if new li kind (type, prefix) - close if previous, open new list
+			// - build a li, consume line and container if exists
+
+			// *** Test before solving line joining
+
+			// (???) TODO abstract func consumeLi() -> (simple|compound, container) either simple or compound (???)
 			fmt.Println("A LI detected!")
+			if currList == nil {
+				fmt.Println("Creating a list TODO type")
+				listNode := MdNode{
+					Type: Element,
+					Tag:  "ol",
+				}
+				root.Children = append(root.Children, listNode)
+				currList = &root.Children[len(root.Children)-1]
+			}
 			// next: 1. blank - lookforward for li.container, +tab after blank
 			//       2. child list item (indent +1..4 or 7 spaces)
 			//       3. sibling li
@@ -66,11 +84,29 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 			//         prepare for the next sibling li
 			//    else 2. process either: a) child list, b) sibling li, c) end list
 
-			if i < len(lines)-2 { // li.container even possible
+			// test simple nesting - next line is a child
+			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside(lines[i].Prefix, lines[i+1].Prefix) {
+				fmt.Println("Simple list nesting, skipping compound item check")
+				// simplified: TODO
+				// now just checking prefix inside to take into simple item with sublist
+				// TODO: what about nested compound items?
+				j := i + 1
+				for j < len(lines) && (lines[j].IsBlank() || prefixInside(lines[i].Prefix, lines[j].Prefix)) {
+					j++
+				}
+				if j-i > 0 {
+					fmt.Println("Found simple nesting")
+					fmt.Printf("---- lines: %d-%d %v\n", i, j, lines[i+1:j])
+					res := MdTree(lines[i+1:j], depth+4, "ol") // TODO depth detected, list type
+					n.Children = append(n.Children, *res)
+				}
+				i = j - 1
+			} else if i < len(lines)-2 { // li.container even possible
 				// simplified (?) just one blank line TODO - what with two???
 				// TODO prefix offset handling for nesting!!!
 				if lines[i+1].IsBlank() && prefixInside(lines[i].Prefix, lines[i+2].Prefix) {
 					fmt.Println("--- a compound li")
+					// compound li handling - consumes any adjacent blank lines (!)
 					// while either blank or prefix inside, put to the li.container
 					j := i + 1
 					for j < len(lines) && (lines[j].IsBlank() || prefixInside(lines[i].Prefix, lines[j].Prefix)) {
@@ -79,16 +115,15 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 					if j-i > 0 {
 						fmt.Printf("Found LI to recurse, lines: %d-%d %v\n", i, j, lines[i+1:j])
 						res := MdTree(lines[i+1:j], depth+4, "div")
-						fmt.Printf("MdTree returned (%d): %v", len(res.Children), res)
+						fmt.Printf("MdTree returned (%d): %v\n", len(res.Children), res)
 						n.Children = res.Children
 						i = j - 1
 					}
 				}
 			}
+			currList.Children = append(currList.Children, n)
+			prev = &currList.Children[len(currList.Children)-1]
 		}
-
-		root.Children = append(root.Children, n)
-		prev = &root.Children[len(root.Children)-1]
 	}
 	return &root
 }
