@@ -91,6 +91,22 @@ func MdTok(r io.Reader, pre string) []mdLine {
 					join = true
 				}
 			}
+			if i > 0 {
+				prev := &out[len(out)-1]
+				if strings.HasPrefix(mark, "===") && tag == "h1" {
+					prev.Tag = tag
+					join = true // quick fix to skip empty <h1> or <h1> for the underline
+				}
+				if strings.HasPrefix(mark, "---") && strings.Index(strings.TrimSpace(mark), " ") == -1 {
+					// settext h2 or hr
+					if prev.Tag == "" && !prev.IsBlank() { // a regular p candidate
+						// force hr to part of h2
+						prev.Tag = "h2"
+						tag = "h2"
+						join = true // quick fix to skip empty <h1> or <h1> for the underline
+					}
+				}
+			}
 			item := mdLine{i, join, p, mark, l, tag}
 			out = append(out, item)
 		}
@@ -113,15 +129,17 @@ func stripLineMark(line string) (mark, text, tag string) {
 	// checklist before ul!
 	reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
+	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
 
 	switch {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
 		mark, tag = line[:3], "pre" // normalize line[0:3], TODO pre > code
+	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
+		return line, "", "h1"
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		mark, tag = ": ", "dd"
 	case isHR(line):
-		fmt.Println("RETURN a hr")
-		return line, line, "hr"
+		return line, "", "hr"
 	case line[0] == '#':
 		if m := reH.FindString(line); len(m) > 0 {
 			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
