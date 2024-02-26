@@ -1,7 +1,9 @@
 package md
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 )
@@ -24,41 +26,21 @@ func BlankLine(nr int) mdLine {
 }
 
 // For now, just playground
-func MdTok(lines []string, pre string) []mdLine {
-	fmt.Printf("MdTok() %d %q\n", len(lines), pre)
-
+func MdTok(r io.Reader, pre string) []mdLine {
 	out := make([]mdLine, 0, 16)
+	scanner := bufio.NewScanner(r)
+	nextLine := func() string {
+		return normalizeWS(scanner.Text(), tabstop)
+	}
 
-	for i := 0; i < len(lines); i++ {
-		l := lines[i]
+	for i := 0; scanner.Scan(); i++ {
+		l := nextLine()
 
 		// blank line
 		if isBlankLine(l) {
 			out = append(out, BlankLine(i))
 			continue
 		}
-
-		// // isolate a blockquote
-		// if l[0] == '>' {
-		// 	j := i // to be set as an element after list end
-		// 	for ; j < len(lines); j++ {
-		// 		if len(lines[j]) < 1 {
-		// 			break
-		// 		}
-		// 		if lines[j][0] != '>' {
-		// 			break
-		// 		}
-		// 	}
-		//
-		// 	block := make([]string, 0, 10)
-		// 	for k := i; k < j; k++ {
-		// 		block = append(block, lines[k][min(len(lines[k]), 2):])
-		// 	}
-		//
-		// 	MdTok(block, pre+">>>>")
-		// 	i = j - 1
-		// 	continue
-		// }
 
 		join := false
 		p := getLinePrefix(l)
@@ -71,9 +53,16 @@ func MdTok(lines []string, pre string) []mdLine {
 			start := i
 			i++
 			code := ""
-			for i < len(lines) && strings.HasPrefix(getLinePrefix(lines[i]), p) && strings.Index(strings.TrimSpace(lines[i]), mark) == -1 {
+			for scanner.Scan() {
+				l := nextLine()
+				if !strings.HasPrefix(getLinePrefix(l), p) {
+					break
+				}
+				if strings.Index(strings.TrimSpace(l), mark) != -1 {
+					break
+				}
 				// TODO error if unclosed fence (within line prefix)
-				code += (lines[i][len(p):] + "\n")
+				code += (l[len(p):] + "\n")
 				i++
 			}
 			fmt.Printf("Found fenced code block: %q\n", code)
@@ -103,7 +92,7 @@ func stripLineMark(line string) (mark, text, tag string) {
 		return "", line, ""
 	}
 	reH := regexp.MustCompile("^(#+)\\s+")
-	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+")
+	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+|[ivx]+\\.|[IVX]+\\.")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
 	switch {
@@ -123,7 +112,7 @@ func stripLineMark(line string) (mark, text, tag string) {
 		}
 	default:
 		if m := reLi.FindString(line); len(m) > 0 {
-			mark, tag = m, "li?"
+			mark, tag = m, "li" // TODO list type
 		}
 	}
 
