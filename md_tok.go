@@ -36,7 +36,7 @@ func MdTok(r io.Reader, pre string) []mdLine {
 	for i := 0; scanner.Scan(); i++ {
 		l := nextLine()
 
-		// blank line
+		// TODO Needed (?), mark previous element end (?)
 		if isBlankLine(l) {
 			out = append(out, BlankLine(i))
 			continue
@@ -47,9 +47,11 @@ func MdTok(r io.Reader, pre string) []mdLine {
 		l = l[len(p):]
 		mark, l, tag := stripLineMark(l)
 
+		// TODO could use also for reading literal text when indented code detected.
+		// Can it be done here? Would save spoiling quoted (apparent) Markdown.
 		if mark == "```" || mark == "~~~" {
 			lang := strings.TrimSpace(l)
-			fmt.Println("Found block in language:", lang)
+			fmt.Println("Found block in language:", lang) // TODO Just to use lang before handling added
 			start := i
 			i++
 			code := ""
@@ -65,13 +67,15 @@ func MdTok(r io.Reader, pre string) []mdLine {
 				code += (l[len(p):] + "\n")
 				i++
 			}
-			fmt.Printf("Found fenced code block: %q\n", code)
+
 			item := mdLine{start, false, p, mark, code, "pre>code"}
 			out = append(out, item)
 			continue
 		} else {
-			if i > 0 && mark == "" {
-				if out[len(out)-1].Text != "" && strings.HasPrefix(p, out[len(out)-1].Prefix) {
+			if i > 0 && mark == "" && l != "" {
+				// TODO cleaner: join when same prefix, same kind not separated with blank
+				// BUT: extension-dl - dd can be only single Md line
+				if out[len(out)-1].Tag != "dd" && out[len(out)-1].Text != "" && strings.HasPrefix(p, out[len(out)-1].Prefix) && equalQuote(p, out[len(out)-1].Prefix) {
 					join = true
 				}
 			}
@@ -147,6 +151,23 @@ func isMdLinePrefixChar(c byte) bool {
 func isBlankLine(l string) bool {
 	for _, c := range l {
 		if c != ' ' && c != '\t' {
+			return false
+		}
+	}
+	return true
+}
+
+// Check if prefixes are the same on the blockquote level
+func equalQuote(pre1, pre2 string) bool {
+	pre1 = strings.TrimRight(pre1, " ")
+	pre2 = strings.TrimRight(pre2, " ")
+
+	if len(pre1) != len(pre2) {
+		return false
+	}
+
+	for i := range pre1 {
+		if pre1[i] != pre2[i] {
 			return false
 		}
 	}
