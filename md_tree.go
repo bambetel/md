@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-func MdTree(lines []mdLine, depth int, tag string) *MdNode {
+func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 	root := MdNode{
-		Tag:  tag,
+		Tag:  rootTag,
 		Type: Element,
 	}
 	var prev *MdNode // for line joining TODO even necessary?
@@ -23,7 +23,7 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 
 		// blockquote handling
 		j := i
-		for j < len(lines) && strings.HasPrefix(lines[j].Prefix[depth:], ">") {
+		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), ">") {
 			j++
 		}
 		if j-i > 0 {
@@ -98,7 +98,7 @@ func MdTree(lines []mdLine, depth int, tag string) *MdNode {
 					fmt.Println("Found simple nesting")
 					fmt.Printf("---- lines: %d-%d %v\n", i, j, lines[i+1:j])
 					res := MdTree(lines[i+1:j], depth+4, "ol") // TODO depth detected, list type
-					n.Children = append(n.Children, *res)
+					n.Children = res.Children
 				}
 				i = j - 1
 			} else if i < len(lines)-2 { // li.container even possible
