@@ -22,9 +22,11 @@ func WriteHTML(n MdNode, w io.Writer) error {
 	// innerHTML
 	// TODO how to determine (by MdNodeType?) if use MdNode.Text
 	// - or a function MdNode.HTML()
-	if n.Children == nil {
+
+	if n.Children == nil || n.Tag == "li" {
 		w.Write([]byte(n.Text))
-	} else {
+	}
+	if n.Children != nil {
 		for _, c := range n.Children {
 			if c.Type == Element {
 				WriteHTML(c, w)
@@ -32,6 +34,6 @@ func WriteHTML(n MdNode, w io.Writer) error {
 		}
 	}
 
-	w.Write([]byte(fmt.Sprintf("</%s>", n.Tag)))
+	w.Write([]byte(fmt.Sprintf("</%s>\n", n.Tag)))
 	return nil
 }
