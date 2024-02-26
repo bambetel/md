@@ -21,6 +21,17 @@ type mdLine struct {
 	Tag    string
 }
 
+func (ml *mdLine) IsBlank() bool {
+	return ml.Text == ""
+}
+
+func (ml *mdLine) LimitPrefix(l int) string {
+	if len(ml.Prefix) <= l {
+		return ""
+	}
+	return ml.Prefix[l:]
+}
+
 func BlankLine(nr int) mdLine {
 	return mdLine{nr, false, "", "", "", ""}
 }
@@ -96,7 +107,7 @@ func stripLineMark(line string) (mark, text, tag string) {
 		return "", line, ""
 	}
 	reH := regexp.MustCompile("^(#+)\\s+")
-	reLi := regexp.MustCompile("^(\\d+\\.|[a-zA-Z]\\.|[-+*]|[-+*]\\s+\\[[ x]\\])\\s+|[ivx]+\\.|[IVX]+\\.")
+	reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|^[-+*]|^[-+*]\\s+\\[[ x]\\])\\s+|^[ivx]+\\.|^[IVX]+\\.")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
 	switch {
