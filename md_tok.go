@@ -22,7 +22,7 @@ type mdLine struct {
 }
 
 func (ml *mdLine) IsBlank() bool {
-	return ml.Text == ""
+	return ml.Text == "" && ml.Tag == ""
 }
 
 func (ml *mdLine) LimitPrefix(l int) string {
@@ -79,14 +79,15 @@ func MdTok(r io.Reader, pre string) []mdLine {
 				i++
 			}
 
-			item := mdLine{start, false, p, mark, code, "pre>code"}
+			item := mdLine{start, false, p, mark, code, "pre"} // TODO pre > code
 			out = append(out, item)
 			continue
 		} else {
 			if i > 0 && mark == "" && l != "" {
 				// TODO cleaner: join when same prefix, same kind not separated with blank
 				// BUT: extension-dl - dd can be only single Md line
-				if out[len(out)-1].Tag != "dd" && out[len(out)-1].Text != "" && strings.HasPrefix(p, out[len(out)-1].Prefix) && equalQuote(p, out[len(out)-1].Prefix) {
+				prev := &out[len(out)-1]
+				if isBreakable(prev) && strings.HasPrefix(p, prev.Prefix) && equalQuote(p, prev.Prefix) {
 					join = true
 				}
 			}
@@ -98,25 +99,29 @@ func MdTok(r io.Reader, pre string) []mdLine {
 	return out
 }
 
+func isBreakable(l *mdLine) bool {
+	return l.Tag != "dd" && l.Tag != "hr" && !strings.HasPrefix(l.Marker, "#") && !l.IsBlank()
+}
+
 // only a block mark or also blockquote?
 // handling: HR, H1..6, LI 1., -, a., A., - [x],
-// (?): ~~~/```
-// TODO (?) return possible tag (?)
 func stripLineMark(line string) (mark, text, tag string) {
 	if len(line) < 2 {
 		return "", line, ""
 	}
-	reH := regexp.MustCompile("^(#+)\\s+")
-	reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|^[-+*]|^[-+*]\\s+\\[[ x]\\])\\s+|^[ivx]+\\.|^[IVX]+\\.")
+	reH := regexp.MustCompile("^(#{1,6})\\s+")
+	// checklist before ul!
+	reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 
 	switch {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
-		mark, tag = line[:3], "pre>code" // normalize line[0:3]
+		mark, tag = line[:3], "pre" // normalize line[0:3], TODO pre > code
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		mark, tag = ": ", "dd"
 	case isHR(line):
-		return line, "", "hr"
+		fmt.Println("RETURN a hr")
+		return line, line, "hr"
 	case line[0] == '#':
 		if m := reH.FindString(line); len(m) > 0 {
 			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
@@ -183,4 +188,26 @@ func equalQuote(pre1, pre2 string) bool {
 		}
 	}
 	return true
+}
+
+func isHR(l string) bool {
+	var marker rune
+	count := 0
+	for _, c := range l {
+		if c != ' ' {
+			marker = c
+			break
+		}
+	}
+	if marker != '-' && marker != '_' && marker != '*' {
+		return false
+	}
+	for _, c := range l {
+		if c != marker && c != ' ' {
+			return false
+		} else if c == marker {
+			count++
+		}
+	}
+	return (count >= 3)
 }

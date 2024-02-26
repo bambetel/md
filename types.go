@@ -17,3 +17,9 @@ const (
 	Text               = 3
 	Comment            = 8 // how to in md?
 )
+
+// TODO necessary?
+func (n *MdNode) JoinString(str string) {
+	// TODO separate with ws, a newline when trailing double space
+	n.Text += " " + str
+}
