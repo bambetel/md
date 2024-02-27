@@ -93,7 +93,15 @@ func MdTok(r io.Reader, pre string) []mdLine {
 			}
 			if i > 0 {
 				prev := &out[len(out)-1]
-				if tag == "dd" && prev.Tag != "dt" && prev.Tag != "dd" {
+				if tag == "dd" && (prev.IsBlank() || prev.Join || (prev.Tag != "" && prev.Tag != "dd" && prev.Tag != "dt")) {
+					// apparent dd fix; also would be invalid after anything apart from p candidate
+					if prev.Join {
+						join = true
+					}
+					tag = "p"    // determine it is a p for any dl checks
+					l = mark + l // todo wiser
+					mark = ""    // regular p
+				} else if tag == "dd" && prev.Tag != "dt" && prev.Tag != "dd" {
 					// definition list fix
 					// edge case: previous would normally be a hard-wrapped paragraph, but dt is expected to be one line
 					prev.Tag = "dt"
@@ -146,7 +154,7 @@ func stripLineMark(line string) (mark, text, tag string) {
 
 	switch {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
-		mark, tag = line[:3], "pre" // normalize line[0:3], TODO pre > code
+		return line[:3], line[3:], "pre" // normalize line[0:3], TODO pre > code
 	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
 		return line, "", "h1"
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
