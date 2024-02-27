@@ -18,6 +18,10 @@ const (
 	Comment            = 8 // how to in md?
 )
 
+func NewMdNodeElement(tag string) MdNode {
+	return MdNode{Type: Element, Tag: tag}
+}
+
 // TODO necessary?
 func (n *MdNode) JoinString(str string) {
 	// TODO separate with ws, a newline when trailing double space

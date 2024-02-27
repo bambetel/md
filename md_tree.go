@@ -13,6 +13,26 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 	var prev *MdNode // for line joining TODO even necessary? no joining: dt, dd
 	var currList *MdNode
 
+	addChildNode := func(n MdNode) {
+		root.Children = append(root.Children, n)
+		if n.Tag == "ol" || n.Tag == "ul" || n.Tag == "dl" {
+			currList = &root.Children[len(root.Children)-1]
+		} else if n.Tag != "li" && n.Tag != "dl" && n.Tag != "dt" { // any else?
+			currList = nil
+		}
+	}
+
+	requireList := func(tag string) {
+		if currList != nil {
+			if currList.Tag != tag {
+				currList = nil
+			}
+		}
+		if currList == nil {
+			addChildNode(NewMdNodeElement(tag))
+		}
+	}
+
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		fmt.Printf("MdTree line %3d [%s] %v \n", i, l.LimitPrefix(depth), l)
@@ -31,10 +51,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			j++
 		}
 		if j-i > 0 {
-			// fmt.Printf("Found BQ to recurse, lines: %d-%d\n", i, j)
-			res := MdTree(lines[i:j], depth+2, "blockquote")
-			// fmt.Printf("MdTree returned (%d): %v", len(res.Children), res)
-			root.Children = append(root.Children, *res)
+			addChildNode(*MdTree(lines[i:j], depth+2, "blockquote"))
 			i = j - 1
 			continue
 		}
@@ -57,19 +74,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 
 		if lines[i].Tag == "dt" || lines[i].Tag == "dd" {
-			if currList != nil {
-				if currList.Tag != "dl" {
-					currList = nil
-				}
-			}
-			if currList == nil {
-				listNode := MdNode{
-					Type: Element,
-					Tag:  "dl",
-				}
-				root.Children = append(root.Children, listNode)
-				currList = &root.Children[len(root.Children)-1]
-			}
+			requireList("dl")
 			currList.Children = append(currList.Children, n)
 			prev = nil
 		} else if lines[i].Tag == "li" {
@@ -81,20 +86,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 
 			// (???) TODO abstract func consumeLi() -> (simple|compound, container) either simple or compound (???)
 			fmt.Println("A LI detected!")
-			if currList != nil {
-				if currList.Tag == "dl" {
-					currList = nil
-				}
-			}
-			if currList == nil {
-				fmt.Println("Creating a list TODO type")
-				listNode := MdNode{
-					Type: Element,
-					Tag:  "ol",
-				}
-				root.Children = append(root.Children, listNode)
-				currList = &root.Children[len(root.Children)-1]
-			}
+			requireList("ol") // TODO list type, punctor style etc.
 			// next: 1. blank - lookforward for li.container, +tab after blank
 			//       2. child list item (indent +1..4 or 7 spaces)
 			//       3. sibling li
@@ -124,6 +116,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			} else if i < len(lines)-2 { // li.container even possible
 				// simplified (?) just one blank line TODO - what with two???
 				// TODO prefix offset handling for nesting!!!
+				// NOTE: if li.block line hard-wrapping allowed, line merging should be done before the lookforward below
 				if lines[i+1].IsBlank() && prefixInside(lines[i].Prefix, lines[i+2].Prefix) {
 					fmt.Println("--- a compound li")
 					// compound li handling - consumes any adjacent blank lines (!)
@@ -144,8 +137,9 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			currList.Children = append(currList.Children, n)
 			prev = &currList.Children[len(currList.Children)-1]
 		} else { // regular block; not a list/dl item
-			currList = nil
-			root.Children = append(root.Children, n)
+			addChildNode(n)
+			// currList = nil
+			// root.Children = append(root.Children, n)
 			prev = &root.Children[len(root.Children)-1]
 		}
 	}
