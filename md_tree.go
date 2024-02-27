@@ -10,14 +10,18 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		Tag:  rootTag,
 		Type: Element,
 	}
-	var prev *MdNode // for line joining TODO even necessary?
+	var prev *MdNode // for line joining TODO even necessary? no joining: dt, dd
 	var currList *MdNode
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		fmt.Printf("MdTree line %3d [%s] %v \n", i, l.LimitPrefix(depth), l)
 		if l.IsBlank() {
-			currList = nil
+			if currList != nil {
+				if currList.Tag != "dl" {
+					currList = nil
+				}
+			}
 			continue
 		}
 
@@ -36,9 +40,8 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 
 		// TODO where should line joining be?
-		// li handling needs lookforward to tell li type, so block lines could be joined here
+		// - should it be lookforward?
 		if l.Join && prev != nil {
-			fmt.Printf("MdTree JOIN LINES %d: %s %s\n", i, prev.Text, l.Text)
 			prev.JoinString(l.Text)
 			continue
 		}
@@ -53,11 +56,23 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			Text: l.Text,
 		}
 
-		if lines[i].Tag != "li" {
-			currList = nil
-			root.Children = append(root.Children, n)
-			prev = &root.Children[len(root.Children)-1]
-		} else {
+		if lines[i].Tag == "dt" || lines[i].Tag == "dd" {
+			if currList != nil {
+				if currList.Tag != "dl" {
+					currList = nil
+				}
+			}
+			if currList == nil {
+				listNode := MdNode{
+					Type: Element,
+					Tag:  "dl",
+				}
+				root.Children = append(root.Children, listNode)
+				currList = &root.Children[len(root.Children)-1]
+			}
+			currList.Children = append(currList.Children, n)
+			prev = nil
+		} else if lines[i].Tag == "li" {
 			// list handling
 			// - if new li kind (type, prefix) - close if previous, open new list
 			// - build a li, consume line and container if exists
@@ -66,6 +81,11 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 
 			// (???) TODO abstract func consumeLi() -> (simple|compound, container) either simple or compound (???)
 			fmt.Println("A LI detected!")
+			if currList != nil {
+				if currList.Tag == "dl" {
+					currList = nil
+				}
+			}
 			if currList == nil {
 				fmt.Println("Creating a list TODO type")
 				listNode := MdNode{
@@ -123,6 +143,10 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			}
 			currList.Children = append(currList.Children, n)
 			prev = &currList.Children[len(currList.Children)-1]
+		} else { // regular block; not a list/dl item
+			currList = nil
+			root.Children = append(root.Children, n)
+			prev = &root.Children[len(root.Children)-1]
 		}
 	}
 	return &root

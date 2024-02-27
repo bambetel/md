@@ -32,7 +32,7 @@ func (ml *mdLine) LimitPrefix(l int) string {
 	return ml.Prefix[l:]
 }
 
-func BlankLine(nr int) mdLine {
+func NewBlankMdLine(nr int) mdLine {
 	return mdLine{nr, false, "", "", "", ""}
 }
 
@@ -49,7 +49,7 @@ func MdTok(r io.Reader, pre string) []mdLine {
 
 		// TODO Needed (?), mark previous element end (?)
 		if isBlankLine(l) {
-			out = append(out, BlankLine(i))
+			out = append(out, NewBlankMdLine(i))
 			continue
 		}
 
@@ -93,11 +93,15 @@ func MdTok(r io.Reader, pre string) []mdLine {
 			}
 			if i > 0 {
 				prev := &out[len(out)-1]
-				if strings.HasPrefix(mark, "===") && tag == "h1" {
+				if tag == "dd" && prev.Tag != "dt" && prev.Tag != "dd" {
+					// definition list fix
+					// edge case: previous would normally be a hard-wrapped paragraph, but dt is expected to be one line
+					prev.Tag = "dt"
+				} else if strings.HasPrefix(mark, "===") && tag == "h1" {
+					// settext h1 fix
 					prev.Tag = tag
 					join = true // quick fix to skip empty <h1> or <h1> for the underline
-				}
-				if strings.HasPrefix(mark, "---") && strings.Index(strings.TrimSpace(mark), " ") == -1 {
+				} else if strings.HasPrefix(mark, "---") && strings.Index(strings.TrimSpace(mark), " ") == -1 {
 					// settext h2 or hr
 					if prev.Tag == "" && !prev.IsBlank() { // a regular p candidate
 						// force hr to part of h2
