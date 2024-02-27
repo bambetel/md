@@ -87,7 +87,7 @@ func MdTok(r io.Reader, pre string) []mdLine {
 				// TODO cleaner: join when same prefix, same kind not separated with blank
 				// BUT: extension-dl - dd can be only single Md line
 				prev := &out[len(out)-1]
-				if isBreakable(prev) && strings.HasPrefix(p, prev.Prefix) && equalQuote(p, prev.Prefix) {
+				if (isBreakable(prev.Tag) && !prev.IsBlank()) && strings.HasPrefix(p, prev.Prefix) && equalQuote(p, prev.Prefix) {
 					join = true
 				}
 			}
@@ -119,8 +119,17 @@ func MdTok(r io.Reader, pre string) []mdLine {
 	return out
 }
 
-func isBreakable(l *mdLine) bool {
-	return l.Tag != "dd" && l.Tag != "hr" && !strings.HasPrefix(l.Marker, "#") && !l.IsBlank()
+func isBreakable(tag string) bool {
+	if tag == "dd" || tag == "hr" {
+		return false
+	}
+	if len(tag) == 2 {
+		if tag[0] == 'h' && '1' <= tag[1] && tag[1] <= '6' {
+			return false
+		}
+	}
+
+	return true
 }
 
 // only a block mark or also blockquote?

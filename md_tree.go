@@ -17,12 +17,15 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		root.Children = append(root.Children, n)
 		if n.Tag == "ol" || n.Tag == "ul" || n.Tag == "dl" {
 			currList = &root.Children[len(root.Children)-1]
+		} else if isBreakable(n.Tag) && len(n.Text) > 0 {
+			prev = &root.Children[len(root.Children)-1]
 		} else if n.Tag != "li" && n.Tag != "dl" && n.Tag != "dt" { // any else?
 			currList = nil
 		}
 	}
 
-	requireList := func(tag string) {
+	// TODO: also differentiate punctor style
+	requireList := func(tag string, addNode MdNode) {
 		if currList != nil {
 			if currList.Tag != tag {
 				currList = nil
@@ -30,6 +33,11 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		if currList == nil {
 			addChildNode(NewMdNodeElement(tag))
+		}
+		prev = nil
+		currList.Children = append(currList.Children, addNode)
+		if isBreakable(tag) {
+			prev = &currList.Children[len(currList.Children)-1]
 		}
 	}
 
@@ -74,9 +82,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 
 		if lines[i].Tag == "dt" || lines[i].Tag == "dd" {
-			requireList("dl")
-			currList.Children = append(currList.Children, n)
-			prev = nil
+			requireList("dl", n)
 		} else if lines[i].Tag == "li" {
 			// list handling
 			// - if new li kind (type, prefix) - close if previous, open new list
@@ -86,7 +92,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 
 			// (???) TODO abstract func consumeLi() -> (simple|compound, container) either simple or compound (???)
 			fmt.Println("A LI detected!")
-			requireList("ol") // TODO list type, punctor style etc.
 			// next: 1. blank - lookforward for li.container, +tab after blank
 			//       2. child list item (indent +1..4 or 7 spaces)
 			//       3. sibling li
@@ -97,13 +102,15 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			//    else 2. process either: a) child list, b) sibling li, c) end list
 
 			// test simple nesting - next line is a child
-			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside(lines[i].Prefix, lines[i+1].Prefix) {
+			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside4s(lines[i].Prefix, lines[i+1].Prefix) {
 				fmt.Println("Simple list nesting, skipping compound item check")
 				// simplified: TODO
 				// now just checking prefix inside to take into simple item with sublist
 				// TODO: what about nested compound items?
 				j := i + 1
-				for j < len(lines) && (lines[j].IsBlank() || prefixInside(lines[i].Prefix, lines[j].Prefix)) {
+				fmt.Printf("prefixInside4s(%q, %q) %v\n", lines[i].Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
+				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(lines[i].Prefix, lines[j].Prefix)) {
+					fmt.Printf("prefixInside4s(%q, %q) %v\n", lines[i].Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
 					j++
 				}
 				if j-i > 0 {
@@ -117,12 +124,13 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				// simplified (?) just one blank line TODO - what with two???
 				// TODO prefix offset handling for nesting!!!
 				// NOTE: if li.block line hard-wrapping allowed, line merging should be done before the lookforward below
-				if lines[i+1].IsBlank() && prefixInside(lines[i].Prefix, lines[i+2].Prefix) {
+				if lines[i+1].IsBlank() && prefixInside4s(lines[i].Prefix, lines[i+2].Prefix) {
 					fmt.Println("--- a compound li")
 					// compound li handling - consumes any adjacent blank lines (!)
 					// while either blank or prefix inside, put to the li.container
 					j := i + 1
-					for j < len(lines) && (lines[j].IsBlank() || prefixInside(lines[i].Prefix, lines[j].Prefix)) {
+					// TODO: check prefixInside at least 4 spaces?
+					for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(lines[i].Prefix, lines[j].Prefix)) {
 						j++
 					}
 					if j-i > 0 {
@@ -134,8 +142,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 					}
 				}
 			}
-			currList.Children = append(currList.Children, n)
-			prev = &currList.Children[len(currList.Children)-1]
+			requireList("ol", n) // TODO list type, punctor style etc.
 		} else { // regular block; not a list/dl item
 			addChildNode(n)
 			// currList = nil
@@ -154,4 +161,18 @@ func prefixInside(in, pre string) bool {
 		return false
 	}
 	return true
+}
+
+func prefixInside4s(in, pre string) bool {
+	if len(in) >= len(pre) {
+		return false
+	}
+	if pre[:len(in)] != in {
+		return false
+	}
+	diff := pre[len(in):]
+	if strings.HasPrefix(diff, "    ") { // a TAB
+		return true
+	}
+	return false
 }
