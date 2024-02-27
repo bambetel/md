@@ -10,15 +10,12 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		Tag:  rootTag,
 		Type: Element,
 	}
-	var prev *MdNode // for line joining TODO even necessary? no joining: dt, dd
 	var currList *MdNode
 
 	addChildNode := func(n MdNode) {
 		root.Children = append(root.Children, n)
 		if n.Tag == "ol" || n.Tag == "ul" || n.Tag == "dl" {
 			currList = &root.Children[len(root.Children)-1]
-		} else if isBreakable(n.Tag) && len(n.Text) > 0 {
-			prev = &root.Children[len(root.Children)-1]
 		} else if n.Tag != "li" && n.Tag != "dl" && n.Tag != "dt" { // any else?
 			currList = nil
 		}
@@ -34,11 +31,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		if currList == nil {
 			addChildNode(NewMdNodeElement(tag))
 		}
-		prev = nil
 		currList.Children = append(currList.Children, addNode)
-		if isBreakable(tag) {
-			prev = &currList.Children[len(currList.Children)-1]
-		}
 	}
 
 	for i := 0; i < len(lines); i++ {
@@ -52,10 +45,24 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			}
 			continue
 		}
+		// JOIN next lines if needed, advance i to tell the logical next line
+		// TODO: check if needs isBreakable checks
+		var joinText string
+		j := i + 1
+		for j = i + 1; j < len(lines); j++ {
+			if !lines[j].Join {
+				break
+			}
+			fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
+			// TODO block text join wrapped lines here
+			joinText += lines[j].Text
+			i++
+		}
 
 		// blockquote handling
-		j := i
+		j = i
 		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), ">") {
+			// TODO valid bq mark check `> word` or `>`
 			j++
 		}
 		if j-i > 0 {
@@ -64,13 +71,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			continue
 		}
 
-		// TODO where should line joining be?
-		// - should it be lookforward?
-		if l.Join && prev != nil {
-			prev.JoinString(l.Text)
-			continue
-		}
-		tag := "p"
+		tag := "p" // default tag; todo check meaningful indentation
 		if l.Tag != "" {
 			tag = l.Tag
 		}
@@ -78,12 +79,12 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		n := MdNode{
 			Type: Element,
 			Tag:  tag,
-			Text: l.Text,
+			Text: l.Text + joinText,
 		}
 
-		if lines[i].Tag == "dt" || lines[i].Tag == "dd" {
+		if l.Tag == "dt" || l.Tag == "dd" {
 			requireList("dl", n)
-		} else if lines[i].Tag == "li" {
+		} else if l.Tag == "li" {
 			// list handling
 			// - if new li kind (type, prefix) - close if previous, open new list
 			// - build a li, consume line and container if exists
@@ -102,15 +103,15 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			//    else 2. process either: a) child list, b) sibling li, c) end list
 
 			// test simple nesting - next line is a child
-			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside4s(lines[i].Prefix, lines[i+1].Prefix) {
+			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside4s(l.Prefix, lines[i+1].Prefix) {
 				fmt.Println("Simple list nesting, skipping compound item check")
 				// simplified: TODO
 				// now just checking prefix inside to take into simple item with sublist
 				// TODO: what about nested compound items?
 				j := i + 1
-				fmt.Printf("prefixInside4s(%q, %q) %v\n", lines[i].Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
-				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(lines[i].Prefix, lines[j].Prefix)) {
-					fmt.Printf("prefixInside4s(%q, %q) %v\n", lines[i].Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
+				fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
+				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
+					fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(l.Prefix, lines[j].Prefix))
 					j++
 				}
 				if j-i > 0 {
@@ -124,13 +125,13 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				// simplified (?) just one blank line TODO - what with two???
 				// TODO prefix offset handling for nesting!!!
 				// NOTE: if li.block line hard-wrapping allowed, line merging should be done before the lookforward below
-				if lines[i+1].IsBlank() && prefixInside4s(lines[i].Prefix, lines[i+2].Prefix) {
+				if lines[i+1].IsBlank() && prefixInside4s(l.Prefix, lines[i+2].Prefix) {
 					fmt.Println("--- a compound li")
 					// compound li handling - consumes any adjacent blank lines (!)
 					// while either blank or prefix inside, put to the li.container
 					j := i + 1
 					// TODO: check prefixInside at least 4 spaces?
-					for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(lines[i].Prefix, lines[j].Prefix)) {
+					for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
 						j++
 					}
 					if j-i > 0 {
@@ -145,9 +146,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			requireList("ol", n) // TODO list type, punctor style etc.
 		} else { // regular block; not a list/dl item
 			addChildNode(n)
-			// currList = nil
-			// root.Children = append(root.Children, n)
-			prev = &root.Children[len(root.Children)-1]
 		}
 	}
 	return &root
