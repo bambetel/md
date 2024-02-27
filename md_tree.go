@@ -16,23 +16,39 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		root.Children = append(root.Children, n)
 		if n.Tag == "ol" || n.Tag == "ul" || n.Tag == "dl" {
 			currList = &root.Children[len(root.Children)-1]
-		} else if n.Tag != "li" && n.Tag != "dl" && n.Tag != "dt" { // any else?
+		} else if !strings.HasPrefix(n.Tag, "li") && n.Tag != "dl" && n.Tag != "dt" { // any else?
 			currList = nil
 		}
 	}
 
 	// TODO: also differentiate punctor style
-	requireList := func(tag string, addNode MdNode) {
+	currListType := ""
+	requireList := func(mark string, addNode MdNode) {
+		if strings.HasPrefix(addNode.Tag, "li") {
+			addNode.Tag = "li" // NOTE: not a reference
+		}
 		if currList != nil {
-			if currList.Tag != tag {
+			if currListType != mark {
 				currList = nil
 			}
 		}
+		tag := "ol"
 		if currList == nil {
+			switch {
+			case mark == "dl":
+				tag = "dl"
+			case strings.HasPrefix(mark, "li:ul"):
+				tag = "ul"
+			// TODO: checklist
+			default:
+				tag = "ol"
+			}
 			addChildNode(NewMdNodeElement(tag))
+			currListType = mark
 		}
 		currList.Children = append(currList.Children, addNode)
 	}
+	fmt.Println("MD TREE CALL")
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -45,22 +61,8 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			}
 			continue
 		}
-		// JOIN next lines if needed, advance i to tell the logical next line
-		// TODO: check if needs isBreakable checks
-		var joinText string
-		j := i + 1
-		for j = i + 1; j < len(lines); j++ {
-			if !lines[j].Join {
-				break
-			}
-			fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
-			// TODO block text join wrapped lines here
-			joinText += lines[j].Text
-			i++
-		}
-
 		// blockquote handling
-		j = i
+		j := i
 		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), ">") {
 			// TODO valid bq mark check `> word` or `>`
 			j++
@@ -69,6 +71,20 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			addChildNode(*MdTree(lines[i:j], depth+2, "blockquote"))
 			i = j - 1
 			continue
+		}
+
+		// JOIN next lines if needed, advance i to tell the logical next line
+		// TODO: check if needs isBreakable checks
+		var joinText string
+		j = i + 1
+		for j = i + 1; j < len(lines); j++ {
+			if !lines[j].Join {
+				break
+			}
+			fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
+			// TODO block text join wrapped lines here
+			joinText += lines[j].Text
+			i++
 		}
 
 		tag := "p" // default tag; todo check meaningful indentation
@@ -84,7 +100,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 
 		if l.Tag == "dt" || l.Tag == "dd" {
 			requireList("dl", n)
-		} else if l.Tag == "li" {
+		} else if strings.HasPrefix(l.Tag, "li") {
 			// list handling
 			// - if new li kind (type, prefix) - close if previous, open new list
 			// - build a li, consume line and container if exists
@@ -103,7 +119,8 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			//    else 2. process either: a) child list, b) sibling li, c) end list
 
 			// test simple nesting - next line is a child
-			if i < len(lines)-1 && lines[i+1].Tag == "li" && prefixInside4s(l.Prefix, lines[i+1].Prefix) {
+			if i < len(lines)-1 && strings.HasPrefix(lines[i+1].Tag, "li") && prefixInside4s(l.Prefix, lines[i+1].Prefix) {
+				// next line is not blank.
 				fmt.Println("Simple list nesting, skipping compound item check")
 				// simplified: TODO
 				// now just checking prefix inside to take into simple item with sublist
@@ -143,7 +160,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 					}
 				}
 			}
-			requireList("ol", n) // TODO list type, punctor style etc.
+			requireList(n.Tag, n) // TODO list type, punctor style etc.
 		} else { // regular block; not a list/dl item
 			addChildNode(n)
 		}

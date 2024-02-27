@@ -36,7 +36,12 @@ func NewBlankMdLine(nr int) mdLine {
 	return mdLine{nr, false, "", "", "", ""}
 }
 
-// For now, just playground
+// Return the document lines with annotations, what they are in terms of block
+// elements. It might be useful for syntax highlighting.
+//
+// No container elements are hinted, but the meaning of each line should be
+// accurate apart from indentation levels that can change p/code or
+// inconsistent list indentation and formatting.
 func MdTok(r io.Reader, pre string) []mdLine {
 	out := make([]mdLine, 0, 16)
 	scanner := bufio.NewScanner(r)
@@ -148,7 +153,14 @@ func stripLineMark(line string) (mark, text, tag string) {
 	}
 	reH := regexp.MustCompile("^(#{1,6})\\s+")
 	// checklist before ul!
-	reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
+	// reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
+	reLiNum := regexp.MustCompile("^\\d+\\.\\s+")
+	reLiLower := regexp.MustCompile("^[a-z]\\.\\s+")
+	reLiUpper := regexp.MustCompile("^[A-Z]\\.\\s+")
+	reLiRomanLower := regexp.MustCompile("^[ivx]+\\.")
+	reLiRomanUpper := regexp.MustCompile("^[IVX]+\\.")
+	reLiUL := regexp.MustCompile("[-+*]\\s+")
+	reLiCheck := regexp.MustCompile("[-+*]\\s+\\[[ x]\\]\\s+")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
 
@@ -170,8 +182,22 @@ func stripLineMark(line string) (mark, text, tag string) {
 			mark, tag = m, "ref"
 		}
 	default:
-		if m := reLi.FindString(line); len(m) > 0 {
-			mark, tag = m, "li" // TODO list type
+		if m := reLiNum.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:1"
+		} else if m := reLiLower.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:a"
+		} else if m := reLiUpper.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:A"
+		} else if m := reLiRomanLower.FindString(line); len(m) > 0 {
+			// TODO: roman vs alpha ambiguous
+			mark, tag = m, "li:i"
+		} else if m := reLiRomanUpper.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:I"
+		} else if m := reLiCheck.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:x"
+		} else if m := reLiUL.FindString(line); len(m) > 0 {
+			mark = m
+			tag = fmt.Sprintf("li:ul%c", mark[0])
 		}
 	}
 
