@@ -48,7 +48,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		currList.Children = append(currList.Children, addNode)
 	}
-	fmt.Println("MD TREE CALL")
+	fmt.Printf("MD TREE CALL %s\n", rootTag)
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -101,27 +101,18 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		if l.Tag == "dt" || l.Tag == "dd" {
 			requireList("dl", n)
 		} else if strings.HasPrefix(l.Tag, "li") {
-			// list handling
-			// - if new li kind (type, prefix) - close if previous, open new list
-			// - build a li, consume line and container if exists
-
-			// *** Test before solving line joining
-
 			// (???) TODO abstract func consumeLi() -> (simple|compound, container) either simple or compound (???)
-			fmt.Println("A LI detected!")
 			// next: 1. blank - lookforward for li.container, +tab after blank
 			//       2. child list item (indent +1..4 or 7 spaces)
 			//       3. sibling li
 			//       4. something else - end of list
 
-			// action: 1. try to find and isolate li.container, add as child,
-			//         prepare for the next sibling li
-			//    else 2. process either: a) child list, b) sibling li, c) end list
-
-			// test simple nesting - next line is a child
 			if i < len(lines)-1 && strings.HasPrefix(lines[i+1].Tag, "li") && prefixInside4s(l.Prefix, lines[i+1].Prefix) {
+				// Simple item with a nested list
 				// next line is not blank.
-				fmt.Println("Simple list nesting, skipping compound item check")
+				diff := prefixInsideN(l.Prefix, lines[i+1].Prefix)
+				fmt.Printf("Simple item with nested list, diff=%d\n", diff)
+
 				// simplified: TODO
 				// now just checking prefix inside to take into simple item with sublist
 				// TODO: what about nested compound items?
@@ -129,6 +120,8 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
 				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
 					fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(l.Prefix, lines[j].Prefix))
+					d := prefixInsideN(l.Prefix, lines[j].Prefix)
+					fmt.Printf(" - - - - list, diff=%d\n", d)
 					j++
 				}
 				if j-i > 0 {
@@ -190,4 +183,22 @@ func prefixInside4s(in, pre string) bool {
 		return true
 	}
 	return false
+}
+
+// Check how much spaces (till any other character) the second prefix is more indented than the first
+func prefixInsideN(in, pre string) int {
+	if len(in) >= len(pre) {
+		return 0
+	}
+	if pre[:len(in)] != in {
+		return 0
+	}
+	diff := pre[len(in):]
+	n := 0
+	for ; n < len(diff); n++ {
+		if diff[n] != ' ' {
+			break
+		}
+	}
+	return n
 }
