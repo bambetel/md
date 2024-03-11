@@ -154,8 +154,8 @@ func stripLineMark(line string) (mark, text, tag string) {
 	reLiUpper := regexp.MustCompile("^[A-Z]\\.\\s+")
 	reLiRomanLower := regexp.MustCompile("^[ivx]+\\.")
 	reLiRomanUpper := regexp.MustCompile("^[IVX]+\\.")
-	reLiUL := regexp.MustCompile("[-+*]\\s+")
-	reLiCheck := regexp.MustCompile("[-+*]\\s+\\[[ x]\\]\\s+")
+	reLiUL := regexp.MustCompile("^[-+*]\\s+")
+	reLiCheck := regexp.MustCompile("^[-+*]\\s+\\[[ x]\\]\\s+")
 	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
 	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
 
