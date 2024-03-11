@@ -68,9 +68,7 @@ func MdTok(r io.Reader, pre string) []mdLine {
 		if mark == "```" || mark == "~~~" {
 			lang := strings.TrimSpace(l)
 			fmt.Println("Found block in language:", lang) // TODO Just to use lang before handling added
-			start := i
 			i++
-			code := ""
 			for scanner.Scan() {
 				l := nextLine()
 				if !strings.HasPrefix(getLinePrefix(l), p) {
@@ -79,14 +77,11 @@ func MdTok(r io.Reader, pre string) []mdLine {
 				if strings.Index(strings.TrimSpace(l), mark) != -1 {
 					break
 				}
-				// TODO error if unclosed fence (within line prefix)
-				code += (l[len(p):] + "\n")
+				// TODO: error if unclosed fence (within line prefix)
+				// TODO: repeat mark?
+				out = append(out, mdLine{i, false, p, mark, l[len(p):], "pre"})
 				i++
 			}
-
-			item := mdLine{start, false, p, mark, code, "pre"} // TODO pre > code
-			out = append(out, item)
-			continue
 		} else {
 			if i > 0 && mark == "" && l != "" {
 				// TODO cleaner: join when same prefix, same kind not separated with blank
