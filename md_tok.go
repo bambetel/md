@@ -218,6 +218,7 @@ func getLineMark(line string) (mark string, tag string) {
 	if len(line) < 2 || isBlankLine(line) { // impossible
 		return "", ""
 	}
+	// TODO: allow optional beginning 1-3 spaces?
 	reH := regexp.MustCompile("^(#{1,6})\\s+")
 	// checklist before ul!
 	// reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
@@ -242,160 +243,37 @@ func getLineMark(line string) (mark string, tag string) {
 		return line, "hr"
 	case line[0] == '#':
 		if m := reH.FindString(line); len(m) > 0 {
-			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
+			return m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
 		}
 	case line[0] == '[':
 		if m := reRef.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:ref"
+			return m, "li:ref"
 		}
 	default:
 		if m := reLiNum.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:1"
+			return m, "li:1"
 		} else if m := reLiLower.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:a"
+			return m, "li:a"
 		} else if m := reLiUpper.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:A"
+			return m, "li:A"
 		} else if m := reLiRomanLower.FindString(line); len(m) > 0 {
-			// TODO: roman vs alpha ambiguous
-			mark, tag = m, "li:i"
+			// TODO: roman vs alpha ambiguous, interchangable
+			return m, "li:i"
 		} else if m := reLiRomanUpper.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:I"
+			return m, "li:I"
 		} else if m := reLiCheck.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:x"
+			return m, "li:x"
 		} else if m := reLiUL.FindString(line); len(m) > 0 {
-			mark = m
-			tag = fmt.Sprintf("li:ul%c", mark[0])
+			return m, fmt.Sprintf("li:ul%c", m[0])
 		}
 	}
 
-	// block type indicators (except for hr) require non-empty content
-	// otherwise it is just a line of text (block type depending on context)
-	if len(mark) == len(line) {
-		return "", ""
-	}
-
-	return line[:len(mark)], tag
-}
-
-// only a block mark or also blockquote?
-// handling: HR, H1..6, LI 1., -, a., A., - [x],
-func stripLineMark(line string) (mark, text, tag string) {
-	if len(line) < 2 {
-		return "", line, ""
-	}
-	reH := regexp.MustCompile("^(#{1,6})\\s+")
-	// checklist before ul!
-	// reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
-	reLiNum := regexp.MustCompile("^\\d+\\.\\s+")
-	reLiLower := regexp.MustCompile("^[a-z]\\.\\s+")
-	reLiUpper := regexp.MustCompile("^[A-Z]\\.\\s+")
-	reLiRomanLower := regexp.MustCompile("^[ivx]+\\.")
-	reLiRomanUpper := regexp.MustCompile("^[IVX]+\\.")
-	reLiUL := regexp.MustCompile("^[-+*]\\s+")
-	reLiCheck := regexp.MustCompile("^[-+*]\\s+\\[[ x]\\]\\s+")
-	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
-	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
-
-	switch {
-	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
-		return line[:3], line[3:], "pre" // normalize line[0:3], TODO pre > code
-	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
-		return line, "", "h1"
-	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
-		mark, tag = ": ", "dd"
-	case isHR(line):
-		return line, "", "hr"
-	case line[0] == '#':
-		if m := reH.FindString(line); len(m) > 0 {
-			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
-		}
-	case line[0] == '[':
-		if m := reRef.FindString(line); len(m) > 0 {
-			mark, tag = m, "ref"
-		}
-	default:
-		if m := reLiNum.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:1"
-		} else if m := reLiLower.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:a"
-		} else if m := reLiUpper.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:A"
-		} else if m := reLiRomanLower.FindString(line); len(m) > 0 {
-			// TODO: roman vs alpha ambiguous
-			mark, tag = m, "li:i"
-		} else if m := reLiRomanUpper.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:I"
-		} else if m := reLiCheck.FindString(line); len(m) > 0 {
-			mark, tag = m, "li:x"
-		} else if m := reLiUL.FindString(line); len(m) > 0 {
-			mark = m
-			tag = fmt.Sprintf("li:ul%c", mark[0])
-		}
-	}
-
-	// block type indicators (except for hr) require non-empty content
-	// otherwise it is just a line of text (block type depending on context)
-	if len(mark) == len(line) {
-		return "", line, ""
-	}
-
-	return line[:len(mark)], line[len(mark):], tag
-}
-
-// Get Md line prefix that consists of whitespace and blockquote markers.
-// Finishes on `>` character
-func getLinePrefixQ(l string) string {
-	i := 0
-	if len(l) < 1 {
-		return ""
-	}
-	for ; i < len(l); i++ {
-		if !isMdLinePrefixChar(l[i]) {
-			break
-		}
-	}
-	return strings.TrimRight(l[0:i], " ")
-}
-
-// Get Md line prefix that consists of whitespace and blockquote markers.
-// Meaning can be relative to the previous line.
-func getLinePrefix(l string) string {
-	i := 0
-	if len(l) < 1 {
-		return ""
-	}
-	for ; i < len(l); i++ {
-		if !isMdLinePrefixChar(l[i]) {
-			break
-		}
-	}
-	return l[0:i]
-}
-
-func isMdLinePrefixChar(c byte) bool {
-	return c == ' ' || c == '>'
+	return "", ""
 }
 
 func isBlankLine(l string) bool {
 	for _, c := range l {
 		if c != ' ' && c != '\t' {
-			return false
-		}
-	}
-	return true
-}
-
-// Check if prefixes are the same on the blockquote level
-func equalQuote(pre1, pre2 string) bool {
-	pre1 = strings.TrimRight(pre1, " ")
-	pre2 = strings.TrimRight(pre2, " ")
-
-	if len(pre1) != len(pre2) {
-		return false
-	}
-
-	for i := range pre1 {
-		if pre1[i] != pre2[i] {
 			return false
 		}
 	}

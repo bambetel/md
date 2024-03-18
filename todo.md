@@ -1,5 +1,16 @@
 # GO Markdown parser TODO
 
+## Current
+
+- List type handling
+- Global data 
+    - metadata from frontmatter 
+    - references
+        - handling repeated ids
+        - in blockquotes (?)
+- Nesting rules
+    - headings in blockquotes, lis 
+
 ## Versions
 
 ### Recursive approach
@@ -69,15 +80,6 @@ Implementation:
 
 1. Shift heading number to be higher than the parent element's heading.
 2. Strip headings?!
-
-## Blockquote handling 
-
-Recursion or a stack?
-
-
-## Line joining
-
-In MdTok() (???)
 
 ## For LSP (?)
 
