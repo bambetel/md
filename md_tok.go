@@ -73,10 +73,15 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 	for i := 0; i < len(lines); i++ {
 		join := false
 		tag := "p"
+		container := []mdLine{}
+		baseLine := i
+		blockEnd := baseLine
 
 		if isBlankLine(lines[i]) {
 			fmt.Printf("%s   --%d--\n", pre, i+1)
-			out = append(out, NewBlankMdLine(i))
+			line := NewBlankMdLine(i)
+			line.Prefix = pre
+			out = append(out, line)
 			continue
 		}
 
@@ -125,19 +130,24 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 			} else if strings.HasPrefix(lines[j], "    ") {
 				nm, _ = getLineMark(strings.TrimPrefix(lines[j], "    "))
+				if nm != "" && strings.HasPrefix(tagHeur, "li") {
+					break
+				}
 			} else {
 				nm, _ = getLineMark(lines[j])
-			}
-			if nm != "" {
-				break
+				if nm != "" { // TODO: nested inside a li
+					break
+				}
 			}
 		}
 		if j > i+1 {
 			fmt.Printf("found multiline block: %q\n", lines[i:j])
 			i = j - 1
+			blockEnd = j - 1
 		}
 
 		if strings.HasPrefix(tagHeur, "li") {
+			tag = "li"
 			l := i + 1
 			if i < len(lines)-1 {
 				for l < len(lines) {
@@ -147,23 +157,26 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 						break
 					}
 				}
+				// todo backtrack trailing blank lines; at least if no phat item
 			}
-			li := mdLine{Nr: i, Tag: "li", Text: lines[i][len(mark):], Prefix: pre, Join: join, Marker: mark}
-			out = append(out, li)
 
 			if l > i+1 {
 				fmt.Printf("Found li content (%d:%d): %qEOT\n", i+1, l+1, lines[i:l])
-
-				block := mdTokR(lines[i+1:l], pre+"....", 4)
-				out = append(out, block...)
-
+				container = mdTokR(lines[i+1:l], pre+"....", 4)
 				i = l - 1
 			}
-			continue
 		}
 
-		line := mdLine{Nr: i, Tag: tag, Text: lines[i][len(mark):] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
+		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][len(mark):] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
+		for ln := baseLine + 1; ln <= blockEnd; ln++ {
+			line := mdLine{Nr: ln, Tag: tag, Text: lines[ln], Prefix: pre, Join: true}
+			out = append(out, line)
+		}
+
+		if len(container) > 0 {
+			out = append(out, container...)
+		}
 
 		prevTag = tag
 
