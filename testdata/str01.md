@@ -6,6 +6,9 @@ exercitation amet. **Nisi anim** cupidatat excepteur officia. Reprehenderit nost
 nostrud _ipsum_ Lorem est aliquip amet voluptate voluptate dolor minim nulla est
 proident. 
 
+## Test for
+no heading hard-wrapping
+
 Just join if more than 4 spaces
      > like here.
       

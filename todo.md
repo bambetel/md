@@ -1,6 +1,31 @@
 # GO Markdown parser TODO
 
-## Recursive approach
+## Versions
+
+### Recursive approach
+
+Basically works. Using GO slice magic.
+
+### TODO: strictly linear approach 
+
+State:
+- container 
+- block
+
+1. get the first line and classify into container/block
+2. Repeat keeping track of state:
+    1. check if line is block continuation
+        - yes: join to previous line
+        - no: maybe container end
+    2. else check if new container 
+        - yes: push state
+    3. start a new block, flag if can be continued (hard wrapping)
+ 
+## Interfaces 
+
+### MdTok
+
+Handling fenced code blocks.
 
 ## Tests
 
@@ -11,9 +36,9 @@ Test data for:
 
 ### Unit tests
 
-Prefix functions:
-- [ ] prefixInside()
-- [ ] equalQuotes()
+MdTok functions:
+- isEmptyLine()
+- getLinePrefix()
 
 ## MdTok() and MdTree() consistency
 
@@ -23,13 +48,6 @@ MdTok() squashes fenced code into one "line", other lines remain separate entrie
 - line processing "literal mode" turned on inside indented and fenced blocks?
 
 ## Prefix
-
-Blockquote marker trailing space present or not
-
-CHECK:
-Code in a blockquote catch:
-- checking prefix the current way may result in what is 
-  supposed to be a `> ~~~` code line to close the code block.
 
 ## Frontmatter parsing
 

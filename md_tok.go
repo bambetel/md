@@ -121,7 +121,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 		// lookforward
 		j := i + 1
-		for ; j < len(lines); j++ {
+		for ; j < len(lines) && isBreakable(tag); j++ {
 			var nm string
 			if isBlankLine(lines[j]) {
 				break
