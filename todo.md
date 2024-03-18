@@ -57,7 +57,11 @@ Test data for:
 - flow parser
 - container recognition
 
+Concept: HTML/Md normalization
+
 ### Unit tests
+
+- MdTok() always keeps line number if a text file is given
 
 MdTok functions:
 - isEmptyLine()
@@ -69,6 +73,15 @@ MdTok() squashes fenced code into one "line", other lines remain separate entrie
 - should it stay and also indented code should be put together?
 - should the lines stay separate (fences and code) with a tag (`pre`, `pre > code`)?
 - line processing "literal mode" turned on inside indented and fenced blocks?
+
+### MdTree strategy
+
+- merge block lines with Join=true
+- merge adjacent `pre` lines into blocks
+- build lists
+    - ol/ul
+    - reference list 
+    - dl, dt, dd
 
 ## Prefix
 
@@ -93,7 +106,12 @@ Implementation:
 1. Shift heading number to be higher than the parent element's heading.
 2. Strip headings?!
 
-## For LSP (?)
+## Validation, normalization, correction
 
-- MdTok - enough to highlight?
-- TODO try differentiate indented code from regular paragraph
+- MdTok output:
+    - error
+    - optional normalization
+    - optional corrections 
+    - optional hints
+
+- MdTok - should give enough info for syntax highlighting
