@@ -43,7 +43,6 @@ func NewBlankMdLine(nr int) mdLine {
 // accurate apart from indentation levels that can change p/code or
 // inconsistent list indentation and formatting.
 func MdTok(r io.Reader, parentPrefix string) []mdLine {
-	out := make([]mdLine, 0, 16)
 	scanner := bufio.NewScanner(r)
 	// TODO: li prefix vs bq prefix
 
@@ -54,12 +53,13 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			lines = append(lines, normalizeWS(scanner.Text(), tabstop))
 		}
 	}
-	mdTokR(lines, "", 0)
+	out := mdTokR(lines, "", 0)
 
 	return out
 }
 
-func mdTokR(inlines []string, pre string, shift int) {
+func mdTokR(inlines []string, pre string, shift int) []mdLine {
+	out := make([]mdLine, 0, 16)
 	lines := make([]string, len(inlines))
 	for i := range inlines {
 		if len(inlines[i]) < shift {
@@ -70,13 +70,24 @@ func mdTokR(inlines []string, pre string, shift int) {
 	}
 	fmt.Printf("mdTokR shift=%d\n", shift)
 	fmt.Printf("received lines: %q\n", lines)
+	prevTag := "none"
 
 	for i := 0; i < len(lines); i++ {
+		join := false
+		tag := "p"
+
 		if isBlankLine(lines[i]) {
 			fmt.Printf("%s   --%d--\n", pre, i+1)
+			out = append(out, NewBlankMdLine(i)) // relative index!
 			continue
 		}
+
+		// isolate bq container
 		if lines[i][0] == '>' {
+			// Assumes every single hard-wrapped line of a bq starts with `>`
+			// with an equal spacing.
+			// If GFM lazy principle was used, a breakable elemenet would
+			// continue unless line was empty or on its own would start a new block.
 			var s int
 			for s = i + 1; s < len(lines); s++ {
 				if len(lines[s]) == 0 {
@@ -87,13 +98,37 @@ func mdTokR(inlines []string, pre string, shift int) {
 				}
 			}
 			fmt.Printf("Found bq: [%d-%d]\n", i+1, s+1)
-			mdTokR(lines[i:s], pre+">>>>", 1) // TODO: 2 assumes obligatory space
+			block := mdTokR(lines[i:s], pre+">>>>", 1) // TODO: 2 assumes obligatory space
+			out = append(out, block...)
 			i = s - 1
 			continue
 		}
 
+		// block processing
+		// assume no 1..3 spaces in front allowed
+		if strings.HasPrefix(lines[i], "     ") { // ofc non-blank
+			// always merge with the previous block
+			join = true
+		} else if strings.HasPrefix(lines[i], "    ") {
+			if prevTag == "li" {
+				tag = "inli"
+			} else {
+				tag = "ind"
+			}
+		}
+		mark, _, tagHeur := stripLineMark(lines[i])
+		if strings.HasPrefix(tagHeur, "li") {
+			tag = "li"
+		}
+
+		line := mdLine{Nr: i, Tag: tag, Text: lines[i] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
+		out = append(out, line)
+
+		prevTag = tag
+
 		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
 	}
+	return out
 }
 
 func MdTok2(r io.Reader, pre string) []mdLine {
