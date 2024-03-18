@@ -83,10 +83,38 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			continue
 		}
 
+		// literal pre text blocks
 		if strings.HasPrefix(lines[i], "    ") {
-			// isolate indented pre
-			item := mdLine{Nr: i, Text: lines[i], Tag: "pre", Prefix: pre}
-			out = append(out, item)
+			for ; i < len(lines); i++ {
+				if !strings.HasPrefix(lines[i], "    ") {
+					break
+				}
+				// isolate indented pre
+				item := mdLine{Nr: i, Text: lines[i], Tag: "pre", Prefix: pre}
+				out = append(out, item)
+			}
+			i--
+			continue
+		}
+		mark, tagHeur := getLineMark(lines[i])
+		tag := tagHeur
+
+		if tag == "pre" {
+			// Fenced code
+			j := i + 1
+			for ; j < len(lines); j++ {
+				if strings.HasPrefix(strings.TrimSpace(lines[j]), mark) {
+					break
+				}
+
+			}
+			// fmt.Printf("Fenced (%s) code: %q\n", mark, lines[i:j+1])
+			container = make([]mdLine, j-i)
+			for k := baseLine; k <= j; k++ {
+				line := mdLine{Tag: tag, Prefix: pre, Text: lines[k], Nr: k}
+				out = append(out, line)
+			}
+			i = j
 			continue
 		}
 
@@ -112,9 +140,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			continue
 		}
 
-		// block processing
-		mark, tagHeur := getLineMark(lines[i])
-		tag := tagHeur
+		// regular hard-wrappable block merging
 		if tag == "" {
 			tag = "p"
 		}

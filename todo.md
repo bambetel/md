@@ -3,6 +3,10 @@
 ## Current
 
 - List type handling
+- dl, dt, dd grouping
+- "smart" block patterns
+    - figures 
+    - heading + list sections
 - Global data 
     - metadata from frontmatter 
     - references
@@ -10,6 +14,14 @@
         - in blockquotes (?)
 - Nesting rules
     - headings in blockquotes, lis 
+
+## Create readme
+
+- Custom Md version
+- Supported extensions
+
+When:
+- interfaces concept ready
 
 ## Versions
 
