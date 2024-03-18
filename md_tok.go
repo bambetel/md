@@ -68,7 +68,6 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 	}
 	fmt.Printf("mdTokR shift=%d\n", shift)
 	fmt.Printf("received lines: %q\n", lines)
-	prevTag := "none"
 
 	for i := 0; i < len(lines); i++ {
 		join := false
@@ -150,14 +149,27 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			tag = "li"
 			l := i + 1
 			if i < len(lines)-1 {
+				firstBlank := false // phat items consume following blank lines
+				blankOnly := true
 				for l < len(lines) {
-					if isBlankLine(lines[l]) || strings.HasPrefix(lines[l], "    ") {
+					if isBlankLine(lines[l]) {
+						if l == i+1 {
+							firstBlank = true
+						}
+						l++
+					} else if strings.HasPrefix(lines[l], "    ") {
+						blankOnly = false
 						l++
 					} else {
 						break
 					}
 				}
-				// todo backtrack trailing blank lines; at least if no phat item
+				if !firstBlank || blankOnly {
+					// return trailing blank lines if no phat item
+					for isBlankLine(lines[l-1]) {
+						l--
+					}
+				}
 			}
 
 			if l > i+1 {
@@ -167,7 +179,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			}
 		}
 
-		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][len(mark):] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
+		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][len(mark):], Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
 		for ln := baseLine + 1; ln <= blockEnd; ln++ {
 			line := mdLine{Nr: ln, Tag: tag, Text: lines[ln], Prefix: pre, Join: true}
@@ -177,8 +189,6 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		if len(container) > 0 {
 			out = append(out, container...)
 		}
-
-		prevTag = tag
 
 		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
 	}
