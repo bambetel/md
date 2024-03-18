@@ -86,7 +86,8 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		// literal pre text blocks
 		if strings.HasPrefix(lines[i], "    ") {
 			for ; i < len(lines); i++ {
-				if !strings.HasPrefix(lines[i], "    ") {
+				// note: takes also blank lines after the actual indented block
+				if !strings.HasPrefix(lines[i], "    ") && !isBlankLine(lines[i]) {
 					break
 				}
 				// isolate indented pre
