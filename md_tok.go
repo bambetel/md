@@ -49,9 +49,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	// i - input line index
 	lines := make([]string, 0, 32)
 	for i := 0; scanner.Scan(); i++ {
-		for scanner.Scan() {
-			lines = append(lines, normalizeWS(scanner.Text(), tabstop))
-		}
+		lines = append(lines, normalizeWS(scanner.Text(), tabstop))
 	}
 	out := mdTokR(lines, "", 0)
 
@@ -78,7 +76,14 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 		if isBlankLine(lines[i]) {
 			fmt.Printf("%s   --%d--\n", pre, i+1)
-			out = append(out, NewBlankMdLine(i)) // relative index!
+			out = append(out, NewBlankMdLine(i))
+			continue
+		}
+
+		if strings.HasPrefix(lines[i], "    ") {
+			// isolate indented pre
+			item := mdLine{Nr: i, Text: lines[i], Tag: "pre"}
+			out = append(out, item)
 			continue
 		}
 
@@ -105,123 +110,65 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		}
 
 		// block processing
-		// assume no 1..3 spaces in front allowed
-		if strings.HasPrefix(lines[i], "     ") { // ofc non-blank
-			// always merge with the previous block
-			join = true
-		} else if strings.HasPrefix(lines[i], "    ") {
-			if prevTag == "li" {
-				tag = "inli"
+		mark, tagHeur := getLineMark(lines[i])
+		// lookforward
+		j := i + 1
+		for ; j < len(lines); j++ {
+			var nm string
+			if isBlankLine(lines[j]) {
+				break
+			}
+			if lines[j][0] == '>' {
+				break
+			}
+			if strings.HasPrefix(lines[j], "     ") {
+
+			} else if strings.HasPrefix(lines[j], "    ") {
+				nm, _ = getLineMark(strings.TrimPrefix(lines[j], "    "))
 			} else {
-				tag = "ind"
+				nm, _ = getLineMark(lines[j])
+			}
+			if nm != "" {
+				break
 			}
 		}
-		mark, _, tagHeur := stripLineMark(lines[i])
-		if strings.HasPrefix(tagHeur, "li") {
-			tag = "li"
+		if j > i+1 {
+			fmt.Printf("found multiline block: %q\n", lines[i:j])
+			i = j - 1
 		}
 
-		line := mdLine{Nr: i, Tag: tag, Text: lines[i] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
+		if strings.HasPrefix(tagHeur, "li") {
+			l := i + 1
+			if i < len(lines)-1 {
+				for l < len(lines) {
+					if isBlankLine(lines[l]) || strings.HasPrefix(lines[l], "    ") {
+						l++
+					} else {
+						break
+					}
+				}
+			}
+			li := mdLine{Nr: i, Tag: "li", Text: lines[i][len(mark):], Prefix: pre, Join: join, Marker: mark}
+			out = append(out, li)
+
+			if l > i+1 {
+				fmt.Printf("Found li content (%d:%d): %qEOT\n", i+1, l+1, lines[i:l])
+
+				block := mdTokR(lines[i+1:l], pre+"....", 4)
+				out = append(out, block...)
+
+				i = l - 1
+			}
+			continue
+		}
+
+		line := mdLine{Nr: i, Tag: tag, Text: lines[i][len(mark):] + "@" + prevTag, Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
 
 		prevTag = tag
 
 		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
 	}
-	return out
-}
-
-func MdTok2(r io.Reader, pre string) []mdLine {
-	out := make([]mdLine, 0, 16)
-	scanner := bufio.NewScanner(r)
-	nextLine := func() string {
-		return normalizeWS(scanner.Text(), tabstop)
-	}
-	blockStart := 0
-
-	for i := 0; scanner.Scan(); i++ {
-		l := nextLine()
-
-		// TODO Needed (?), mark previous element end (?)
-		if isBlankLine(l) {
-			out = append(out, NewBlankMdLine(i))
-			continue
-		}
-
-		join := false
-		p := getLinePrefix(l)
-		l = l[len(p):]
-		mark, l, tag := stripLineMark(l)
-
-		// TODO could use also for reading literal text when indented code detected.
-		// Can it be done here? Would save spoiling quoted (apparent) Markdown.
-		if mark == "```" || mark == "~~~" {
-			lang := strings.TrimSpace(l)
-			fmt.Println("Found block in language:", lang) // TODO Just to use lang before handling added
-			i++
-			for scanner.Scan() {
-				l := nextLine()
-				if !strings.HasPrefix(getLinePrefix(l), p) {
-					break
-				}
-				if strings.Index(strings.TrimSpace(l), mark) != -1 {
-					break
-				}
-				// TODO: error if unclosed fence (within line prefix)
-				// TODO: repeat mark?
-				out = append(out, mdLine{i, false, p, mark, l[len(p):], "pre"})
-				i++
-			}
-		} else {
-			if i > 0 && mark == "" && l != "" {
-				// TODO cleaner: join when same prefix, same kind not separated with blank
-				// BUT: extension-dl - dd can be only single Md line
-				prev := &out[len(out)-1]
-				if (isBreakable(prev.Tag) && !prev.IsBlank()) && strings.HasPrefix(p, prev.Prefix) && equalQuote(p, prev.Prefix) {
-					join = true
-				}
-			}
-			if i > 0 {
-				prev := &out[len(out)-1]
-				if tag == "dd" && (prev.IsBlank() || (prev.Tag != "" && prev.Tag != "dd" && prev.Tag != "dt")) {
-					// apparent dd fix; also would be invalid after anything apart from p candidate
-					// if prev.Join {
-					// 	join = true
-					// }
-					tag = "p"    // determine it is a p for any dl checks
-					l = mark + l // todo wiser
-					mark = ""    // regular p
-				} else if tag == "dd" && !prev.IsBlank() && prev.Tag != "dt" && prev.Tag != "dd" {
-					// definition list fix
-					// edge case: previous would normally be a hard-wrapped paragraph, but dt is expected to be one line
-					if blockStart < len(out) {
-						out[blockStart].Tag = "dt"
-					} else {
-						fmt.Println("WTF?!", i, blockStart, len(out))
-					}
-					// prev.Tag = "dt"
-				} else if strings.HasPrefix(mark, "===") && tag == "h1" {
-					// settext h1 fix
-					prev.Tag = tag
-					join = true // quick fix to skip empty <h1> or <h1> for the underline
-				} else if strings.HasPrefix(mark, "---") && strings.Index(strings.TrimSpace(mark), " ") == -1 {
-					// settext h2 or hr
-					if prev.Tag == "" && !prev.IsBlank() { // a regular p candidate
-						// force hr to part of h2
-						prev.Tag = "h2"
-						tag = "h2"
-						join = true // quick fix to skip empty <h1> or <h1> for the underline
-					}
-				}
-			}
-			if !join {
-				blockStart = i
-			}
-			item := mdLine{blockStart, join, p, mark, l, tag}
-			out = append(out, item)
-		}
-	}
-
 	return out
 }
 
@@ -238,6 +185,69 @@ func isBreakable(tag string) bool {
 	}
 
 	return true
+}
+
+func getLineMark(line string) (mark string, tag string) {
+	if len(line) < 2 || isBlankLine(line) { // impossible
+		return "", ""
+	}
+	reH := regexp.MustCompile("^(#{1,6})\\s+")
+	// checklist before ul!
+	// reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
+	reLiNum := regexp.MustCompile("^\\d+\\.\\s+")
+	reLiLower := regexp.MustCompile("^[a-z]\\.\\s+")
+	reLiUpper := regexp.MustCompile("^[A-Z]\\.\\s+")
+	reLiRomanLower := regexp.MustCompile("^[ivx]+\\.")
+	reLiRomanUpper := regexp.MustCompile("^[IVX]+\\.")
+	reLiUL := regexp.MustCompile("^[-+*]\\s+")
+	reLiCheck := regexp.MustCompile("^[-+*]\\s+\\[[ x]\\]\\s+")
+	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
+	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
+
+	switch {
+	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
+		return line[0:3], "pre"
+	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
+		return line, "h1"
+	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
+		return ": ", "dd"
+	case isHR(line):
+		return line, "hr"
+	case line[0] == '#':
+		if m := reH.FindString(line); len(m) > 0 {
+			mark, tag = m, fmt.Sprintf("h%d", len(strings.TrimSpace(m)))
+		}
+	case line[0] == '[':
+		if m := reRef.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:ref"
+		}
+	default:
+		if m := reLiNum.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:1"
+		} else if m := reLiLower.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:a"
+		} else if m := reLiUpper.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:A"
+		} else if m := reLiRomanLower.FindString(line); len(m) > 0 {
+			// TODO: roman vs alpha ambiguous
+			mark, tag = m, "li:i"
+		} else if m := reLiRomanUpper.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:I"
+		} else if m := reLiCheck.FindString(line); len(m) > 0 {
+			mark, tag = m, "li:x"
+		} else if m := reLiUL.FindString(line); len(m) > 0 {
+			mark = m
+			tag = fmt.Sprintf("li:ul%c", mark[0])
+		}
+	}
+
+	// block type indicators (except for hr) require non-empty content
+	// otherwise it is just a line of text (block type depending on context)
+	if len(mark) == len(line) {
+		return "", ""
+	}
+
+	return line[:len(mark)], tag
 }
 
 // only a block mark or also blockquote?
