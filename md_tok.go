@@ -13,7 +13,7 @@ import (
 // characters using tabstop value.
 
 type mdLine struct {
-	Line   int
+	Nr     int
 	Join   bool
 	Prefix string
 	Marker string
@@ -42,12 +42,67 @@ func NewBlankMdLine(nr int) mdLine {
 // No container elements are hinted, but the meaning of each line should be
 // accurate apart from indentation levels that can change p/code or
 // inconsistent list indentation and formatting.
-func MdTok(r io.Reader, pre string) []mdLine {
+func MdTok(r io.Reader, parentPrefix string) []mdLine {
+	out := make([]mdLine, 0, 16)
+	scanner := bufio.NewScanner(r)
+	// TODO: li prefix vs bq prefix
+
+	// i - input line index
+	lines := make([]string, 0, 32)
+	for i := 0; scanner.Scan(); i++ {
+		for scanner.Scan() {
+			lines = append(lines, normalizeWS(scanner.Text(), tabstop))
+		}
+	}
+	mdTokR(lines, "", 0)
+
+	return out
+}
+
+func mdTokR(inlines []string, pre string, shift int) {
+	lines := make([]string, len(inlines))
+	for i := range inlines {
+		if len(inlines[i]) < shift {
+			lines[i] = ""
+		} else {
+			lines[i] = inlines[i][shift:]
+		}
+	}
+	fmt.Printf("mdTokR shift=%d\n", shift)
+	fmt.Printf("received lines: %q\n", lines)
+
+	for i := 0; i < len(lines); i++ {
+		if isBlankLine(lines[i]) {
+			fmt.Printf("%s   --%d--\n", pre, i+1)
+			continue
+		}
+		if lines[i][0] == '>' {
+			var s int
+			for s = i + 1; s < len(lines); s++ {
+				if len(lines[s]) == 0 {
+					break
+				}
+				if lines[s][0] != '>' {
+					break
+				}
+			}
+			fmt.Printf("Found bq: [%d-%d]\n", i+1, s+1)
+			mdTokR(lines[i:s], pre+">>>>", 1) // TODO: 2 assumes obligatory space
+			i = s - 1
+			continue
+		}
+
+		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
+	}
+}
+
+func MdTok2(r io.Reader, pre string) []mdLine {
 	out := make([]mdLine, 0, 16)
 	scanner := bufio.NewScanner(r)
 	nextLine := func() string {
 		return normalizeWS(scanner.Text(), tabstop)
 	}
+	blockStart := 0
 
 	for i := 0; scanner.Scan(); i++ {
 		l := nextLine()
@@ -93,18 +148,23 @@ func MdTok(r io.Reader, pre string) []mdLine {
 			}
 			if i > 0 {
 				prev := &out[len(out)-1]
-				if tag == "dd" && (prev.IsBlank() || prev.Join || (prev.Tag != "" && prev.Tag != "dd" && prev.Tag != "dt")) {
+				if tag == "dd" && (prev.IsBlank() || (prev.Tag != "" && prev.Tag != "dd" && prev.Tag != "dt")) {
 					// apparent dd fix; also would be invalid after anything apart from p candidate
-					if prev.Join {
-						join = true
-					}
+					// if prev.Join {
+					// 	join = true
+					// }
 					tag = "p"    // determine it is a p for any dl checks
 					l = mark + l // todo wiser
 					mark = ""    // regular p
-				} else if tag == "dd" && prev.Tag != "dt" && prev.Tag != "dd" {
+				} else if tag == "dd" && !prev.IsBlank() && prev.Tag != "dt" && prev.Tag != "dd" {
 					// definition list fix
 					// edge case: previous would normally be a hard-wrapped paragraph, but dt is expected to be one line
-					prev.Tag = "dt"
+					if blockStart < len(out) {
+						out[blockStart].Tag = "dt"
+					} else {
+						fmt.Println("WTF?!", i, blockStart, len(out))
+					}
+					// prev.Tag = "dt"
 				} else if strings.HasPrefix(mark, "===") && tag == "h1" {
 					// settext h1 fix
 					prev.Tag = tag
@@ -119,7 +179,10 @@ func MdTok(r io.Reader, pre string) []mdLine {
 					}
 				}
 			}
-			item := mdLine{i, join, p, mark, l, tag}
+			if !join {
+				blockStart = i
+			}
+			item := mdLine{blockStart, join, p, mark, l, tag}
 			out = append(out, item)
 		}
 	}
@@ -127,6 +190,8 @@ func MdTok(r io.Reader, pre string) []mdLine {
 	return out
 }
 
+// Tell if an element can be a multiline block, default true, but
+// HR, ### Headings 1..6 and extension DL>DD are always single line
 func isBreakable(tag string) bool {
 	if tag == "dd" || tag == "hr" {
 		return false
@@ -203,6 +268,21 @@ func stripLineMark(line string) (mark, text, tag string) {
 	}
 
 	return line[:len(mark)], line[len(mark):], tag
+}
+
+// Get Md line prefix that consists of whitespace and blockquote markers.
+// Finishes on `>` character
+func getLinePrefixQ(l string) string {
+	i := 0
+	if len(l) < 1 {
+		return ""
+	}
+	for ; i < len(l); i++ {
+		if !isMdLinePrefixChar(l[i]) {
+			break
+		}
+	}
+	return strings.TrimRight(l[0:i], " ")
 }
 
 // Get Md line prefix that consists of whitespace and blockquote markers.
