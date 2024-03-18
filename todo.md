@@ -1,11 +1,28 @@
-# Tests
+# GO Markdown parser TODO
+
+## Recursive approach
+
+## Tests
 
 Test data for:
 - block recognition
 - flow parser
 - container recognition
 
-# Prefix
+### Unit tests
+
+Prefix functions:
+- [ ] prefixInside()
+- [ ] equalQuotes()
+
+## MdTok() and MdTree() consistency
+
+MdTok() squashes fenced code into one "line", other lines remain separate entries?
+- should it stay and also indented code should be put together?
+- should the lines stay separate (fences and code) with a tag (`pre`, `pre > code`)?
+- line processing "literal mode" turned on inside indented and fenced blocks?
+
+## Prefix
 
 Blockquote marker trailing space present or not
 
@@ -14,7 +31,7 @@ Code in a blockquote catch:
 - checking prefix the current way may result in what is 
   supposed to be a `> ~~~` code line to close the code block.
 
-# Frontmatter parsing
+## Frontmatter parsing
 
 Needed: key → value, key → list (tags etc.)
 
@@ -22,35 +39,29 @@ Implementation:
 - YAML
 - Other?
 
-# Paragraph vs indented code 
-
-- local prefix difference?
-
-# Line pattern matching
-
-## Lists
-
-1. { LI(p,t)} - open a list
-2. { LI(p,t), LI(p,t) } - sibling list item
-3. { LI(p), blank, ANY(p in p) } - compound LI body
-4. ELSE { LI, blank, ANY other } - end list 
-
-## Definition lists 
-
-{ `<p>`, `<dd>`\* } -> `dl > (dt + dd*)+` // one line p only?
-
 ## HTML output 
 
 - attributes
 - auto TOC, heading/part ids.
+- use GO templates to make a complete document with metadata, links, styles etc.
 
-# Heading level handling 
+## Heading level handling 
 
-## In blockquotes
+### In blockquotes
 
 1. Shift heading number to be higher than the parent element's heading.
 2. Strip headings?!
 
-# Blockquote handling 
+## Blockquote handling 
 
 Recursion or a stack?
+
+
+## Line joining
+
+In MdTok() (???)
+
+## For LSP (?)
+
+- MdTok - enough to highlight?
+- TODO try differentiate indented code from regular paragraph

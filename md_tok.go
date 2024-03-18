@@ -71,7 +71,6 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 	for i := 0; i < len(lines); i++ {
 		join := false
-		tag := "p"
 		container := []mdLine{}
 		baseLine := i
 		blockEnd := baseLine
@@ -86,7 +85,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 		if strings.HasPrefix(lines[i], "    ") {
 			// isolate indented pre
-			item := mdLine{Nr: i, Text: lines[i], Tag: "pre"}
+			item := mdLine{Nr: i, Text: lines[i], Tag: "pre", Prefix: pre}
 			out = append(out, item)
 			continue
 		}
@@ -115,6 +114,11 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 		// block processing
 		mark, tagHeur := getLineMark(lines[i])
+		tag := tagHeur
+		if tag == "" {
+			tag = "p"
+		}
+
 		// lookforward
 		j := i + 1
 		for ; j < len(lines); j++ {
