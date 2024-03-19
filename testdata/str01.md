@@ -21,6 +21,10 @@ Or just 3, 2, 1 spaces
 >
 >     Indented code inside
 
+>Test space optionality - no spaces here.
+> Neither here.
+>  This line should have 1.
+
 Nostrud officia pariatur ut officia. Sit irure elit esse ea nulla
      1. this should not be treated as a li, because of 5 space indent
     2. but this is a list in some plugins, however it shouldn't!

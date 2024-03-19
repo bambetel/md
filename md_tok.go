@@ -59,11 +59,20 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 func mdTokR(inlines []string, pre string, shift int) []mdLine {
 	out := make([]mdLine, 0, 16)
 	lines := make([]string, len(inlines))
+	isBlockquote := strings.HasSuffix(pre, ">") // TODO: a patch; more consistent
+
 	for i := range inlines {
 		if len(inlines[i]) < shift {
 			lines[i] = ""
 		} else {
-			lines[i] = inlines[i][shift:]
+			lineShift := shift
+			if isBlockquote && len(inlines[i]) > 1 {
+				// assumes obligatory '>' line start
+				if inlines[i][1] == ' ' {
+					lineShift += 1
+				}
+			}
+			lines[i] = inlines[i][lineShift:]
 		}
 	}
 	fmt.Printf("mdTokR shift=%d\n", shift)
