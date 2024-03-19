@@ -186,6 +186,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		}
 
 		if strings.HasPrefix(tagHeur, "li") {
+			// TODO: has unexpected feature - possible reference nesting
 			tag = "li"
 			l := i + 1
 			if i < len(lines)-1 {
@@ -219,7 +220,20 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			}
 		}
 
-		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][len(mark):], Prefix: pre, Join: join, Marker: mark}
+		baseLineShift := 0
+		if tag == "p" {
+			if len(lines[i]) >= 2 { // escaped char, actually to be meaningful, requires 3, 4?
+				// TODO: handle only block marks escaping!
+				// or a struct for both input and output and
+				// escape line flag set here.
+				if lines[i][0] == '\\' {
+					baseLineShift = 1
+				}
+			}
+		}
+
+		// baseLineShift (for p) OR len(mark) (for not p)
+		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][baseLineShift+len(mark):], Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
 		for ln := baseLine + 1; ln <= blockEnd; ln++ {
 			line := mdLine{Nr: ln, Tag: tag, Text: lines[ln], Prefix: pre, Join: true}
