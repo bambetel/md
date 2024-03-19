@@ -186,6 +186,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		}
 
 		if strings.HasPrefix(tagHeur, "li") {
+			// TODO: has unexpected feature - possible reference nesting
 			tag = "li"
 			l := i + 1
 			if i < len(lines)-1 {
@@ -219,10 +220,10 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			}
 		}
 
-		line := mdLine{Nr: baseLine, Tag: tag, Text: lines[baseLine][len(mark):], Prefix: pre, Join: join, Marker: mark}
+		line := mdLine{Nr: baseLine, Tag: tag, Text: unescapeLine(lines[baseLine][len(mark):]), Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
 		for ln := baseLine + 1; ln <= blockEnd; ln++ {
-			line := mdLine{Nr: ln, Tag: tag, Text: lines[ln], Prefix: pre, Join: true}
+			line := mdLine{Nr: ln, Tag: tag, Text: unescapeLine(lines[ln]), Prefix: pre, Join: true}
 			out = append(out, line)
 		}
 
@@ -233,6 +234,16 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
 	}
 	return out
+}
+
+func unescapeLine(l string) string {
+	if len(l) >= 2 { // escaped char, actually to be meaningful, requires 3, 4?
+		// TODO: handle only block marks escaping!
+		if l[0] == '\\' {
+			return l[1:]
+		}
+	}
+	return l
 }
 
 // Tell if an element can be a multiline block, default true, but
