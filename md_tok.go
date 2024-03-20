@@ -75,6 +75,8 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 	fmt.Printf("mdTokR shift=%d\n", shift)
 	fmt.Printf("received lines: %q\n", lines)
 
+	prevTag := ""
+
 	for i := 0; i < len(lines); i++ {
 		join := false
 		container := []mdLine{}
@@ -215,6 +217,13 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			}
 		}
 
+		if tag == "hr" && strings.HasPrefix(lines[i], "---") && prevTag == "p" { // TODO: rather token hr/settext underline
+			fmt.Printf("Settext h2 candidate:\n%s\n%s\n\n", lines[i-1], lines[i])
+		}
+		if tag == "h1" && strings.HasPrefix(lines[i], "===") && prevTag == "p" { // TODO: similarily
+			fmt.Printf("Settext h1 candidate:\n%s\n%s\n\n", lines[i-1], lines[i])
+		}
+
 		line := mdLine{Nr: baseLine, Tag: tag, Text: unescapeLine(lines[baseLine][len(mark):]), Prefix: pre, Join: join, Marker: mark}
 		out = append(out, line)
 		for ln := baseLine + 1; ln <= blockEnd; ln++ {
@@ -227,6 +236,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 		}
 
 		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
+		prevTag = tag
 	}
 	return out
 }
