@@ -4,6 +4,16 @@
 
 - List type handling
 - dl, dt, dd grouping
+    - TODO: how
+        - could just get a regular paragraph and check if it matches a pattern then
+        - rules: term in single line?
+        - wrappable definitions?
+
+        Show
+        goose
+        : a aprticular species of geese
+            that lives somewhere and eats something
+        : a goose made of snow
 - "smart" block patterns
     - figures 
     - heading + list sections

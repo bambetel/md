@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 )
 
@@ -21,19 +20,17 @@ type mdLine struct {
 	Tag    string
 }
 
+// TODO: needed (?), rules, which tags, where (in pre blank lines are preserved literally)
 func (ml *mdLine) IsBlank() bool {
 	return ml.Text == "" && ml.Tag == ""
 }
 
+// TODO: needed?
 func (ml *mdLine) LimitPrefix(l int) string {
 	if len(ml.Prefix) <= l {
 		return ""
 	}
 	return ml.Prefix[l:]
-}
-
-func NewBlankMdLine(nr int) mdLine {
-	return mdLine{nr, false, "", "", "", ""}
 }
 
 // Return the document lines with annotations, what they are in terms of block
@@ -86,9 +83,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 		if isBlankLine(lines[i]) {
 			fmt.Printf("%s   --%d--\n", pre, i+1)
-			line := NewBlankMdLine(i)
-			line.Prefix = pre
-			out = append(out, line)
+			out = append(out, mdLine{Nr: i, Prefix: pre})
 			continue
 		}
 
@@ -106,8 +101,8 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			i--
 			continue
 		}
-		mark, tagHeur := getLineMark(lines[i])
-		tag := tagHeur
+
+		mark, tag := getLineMark(lines[i])
 
 		if tag == "pre" {
 			// Fenced code
@@ -169,7 +164,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 
 			} else if strings.HasPrefix(lines[j], "    ") {
 				nm, _ = getLineMark(strings.TrimPrefix(lines[j], "    "))
-				if nm != "" && strings.HasPrefix(tagHeur, "li") {
+				if nm != "" && strings.HasPrefix(tag, "li") {
 					break
 				}
 			} else {
@@ -185,7 +180,7 @@ func mdTokR(inlines []string, pre string, shift int) []mdLine {
 			blockEnd = j - 1
 		}
 
-		if strings.HasPrefix(tagHeur, "li") {
+		if strings.HasPrefix(tag, "li") {
 			// TODO: has unexpected feature - possible reference nesting
 			tag = "li"
 			l := i + 1
@@ -266,18 +261,6 @@ func getLineMark(line string) (mark string, tag string) {
 		return "", ""
 	}
 	// TODO: allow optional beginning 1-3 spaces?
-	reH := regexp.MustCompile("^(#{1,6})\\s+")
-	// checklist before ul!
-	// reLi := regexp.MustCompile("^(\\d+\\.|^[a-zA-Z]\\.|[-+*]\\s+\\[[ x]\\]\\s+|[-+*]\\s+|[ivx]+\\.|[IVX]+\\.)")
-	reLiNum := regexp.MustCompile("^\\d+\\.\\s+")
-	reLiLower := regexp.MustCompile("^[a-z]\\.\\s+")
-	reLiUpper := regexp.MustCompile("^[A-Z]\\.\\s+")
-	reLiRomanLower := regexp.MustCompile("^[ivx]+\\.")
-	reLiRomanUpper := regexp.MustCompile("^[IVX]+\\.")
-	reLiUL := regexp.MustCompile("^[-+*]\\s+")
-	reLiCheck := regexp.MustCompile("^[-+*]\\s+\\[[ x]\\]\\s+")
-	reRef := regexp.MustCompile("^\\[\\w+\\]:\\s+")
-	reSettextUnderH1 := regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
 
 	switch {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
