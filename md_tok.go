@@ -33,12 +33,8 @@ func (ml *mdLine) LimitPrefix(l int) string {
 	return ml.Prefix[l:]
 }
 
-// Return the document lines with annotations, what they are in terms of block
-// elements. It might be useful for syntax highlighting.
-//
-// No container elements are hinted, but the meaning of each line should be
-// accurate apart from indentation levels that can change p/code or
-// inconsistent list indentation and formatting.
+// TODO: function description
+
 func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	scanner := bufio.NewScanner(r)
 	// TODO: li prefix vs bq prefix
@@ -48,201 +44,117 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	for i := 0; scanner.Scan(); i++ {
 		lines = append(lines, normalizeWS(scanner.Text(), tabstop))
 	}
-	out := mdTokR(lines, "", 0)
+	// out := mdTokR(lines, "", 0)
 
-	return out
-}
+	out := make([]mdLine, len(lines))
 
-func mdTokR(inlines []string, pre string, shift int) []mdLine {
-	out := make([]mdLine, 0, 16)
-	lines := make([]string, len(inlines))
-	isBlockquote := strings.HasSuffix(pre, ">") // TODO: a patch; more consistent
-
-	for i := range inlines {
-		if len(inlines[i]) < shift {
-			lines[i] = ""
-		} else {
-			lineShift := shift
-			if isBlockquote && len(inlines[i]) > 1 {
-				// assumes obligatory '>' line start
-				if inlines[i][1] == ' ' {
-					lineShift += 1
-				}
-			}
-			lines[i] = inlines[i][lineShift:]
-		}
-	}
-	fmt.Printf("mdTokR shift=%d\n", shift)
-	fmt.Printf("received lines: %q\n", lines)
-
-	prevTag := ""
+	// lastBlock (?)
+	// lastTag := ""
+	lastToken := ""
+	lastPrefix := ""
 
 	for i := 0; i < len(lines); i++ {
-		join := false
-		container := []mdLine{}
-		baseLine := i
-		blockEnd := baseLine
+		l := lines[i]
+		prefix := ""
+		prefixLen := 0
+		cutSpace := 0
 
-		if isBlankLine(lines[i]) {
-			fmt.Printf("%s   --%d--\n", pre, i+1)
-			out = append(out, mdLine{Nr: i, Prefix: pre})
+		// de novo prefix
+		if len(l) == 0 {
+			fmt.Printf("%3d: NULL LINE @@@@@@@@@@\n", i+1)
+			out[i] = mdLine{Nr: i}
+			lastToken = ""
 			continue
 		}
-
-		// literal pre text blocks
-		if strings.HasPrefix(lines[i], "    ") {
-			for ; i < len(lines); i++ {
-				// note: takes also blank lines after the actual indented block
-				if !strings.HasPrefix(lines[i], "    ") && !isBlankLine(lines[i]) {
-					break
-				}
-				// isolate indented pre
-				item := mdLine{Nr: i, Text: lines[i], Tag: "pre", Prefix: pre}
-				out = append(out, item)
-			}
-			i--
-			continue
-		}
-
-		mark, tag := getLineMark(lines[i])
-
-		if tag == "pre" {
-			// Fenced code
-			j := i + 1
-			for ; j < len(lines); j++ {
-				if strings.HasPrefix(strings.TrimSpace(lines[j]), mark) {
-					break
-				}
-
-			}
-			// fmt.Printf("Fenced (%s) code: %q\n", mark, lines[i:j+1])
-			container = make([]mdLine, j-i)
-			for k := baseLine; k <= j; k++ {
-				line := mdLine{Tag: tag, Prefix: pre, Text: lines[k], Nr: k}
-				out = append(out, line)
-			}
-			i = j
-			continue
-		}
-
-		// isolate bq container
-		if lines[i][0] == '>' {
-			// Assumes every single hard-wrapped line of a bq starts with `>`
-			// with an equal spacing.
-			// If GFM lazy principle was used, a breakable elemenet would
-			// continue unless line was empty or on its own would start a new block.
-			var s int
-			for s = i + 1; s < len(lines); s++ {
-				if len(lines[s]) == 0 {
-					break
-				}
-				if lines[s][0] != '>' {
+		if len(l) > 0 { // condition order, nesting?
+			k := 0
+			for ; k < len(l) && k < len(lastPrefix); k++ {
+				if l[k] != lastPrefix[k] {
 					break
 				}
 			}
-			fmt.Printf("Found bq: [%d-%d]\n", i+1, s+1)
-			block := mdTokR(lines[i:s], pre+">>>>", 1) // TODO: 2 assumes obligatory space
-			out = append(out, block...)
-			i = s - 1
-			continue
-		}
-
-		// regular hard-wrappable block merging
-		if tag == "" {
-			tag = "p"
-		}
-
-		// lookforward
-		j := i + 1
-		for ; j < len(lines) && isBreakable(tag); j++ {
-			var nm string
-			if isBlankLine(lines[j]) {
-				break
-			}
-			if lines[j][0] == '>' {
-				break
-			}
-			if strings.HasPrefix(lines[j], "     ") {
-
-			} else if strings.HasPrefix(lines[j], "    ") {
-				nm, _ = getLineMark(strings.TrimPrefix(lines[j], "    "))
-				if nm != "" && strings.HasPrefix(tag, "li") {
+			prefixLen = k
+			for ; prefixLen < len(l); prefixLen++ {
+				if strings.HasPrefix(l[prefixLen:], "    ") {
 					break
 				}
-			} else {
-				nm, _ = getLineMark(lines[j])
-				if nm != "" { // TODO: nested inside a li
+				if l[prefixLen] == ' ' {
+					continue
+				}
+				if l[prefixLen] == '>' {
+					continue
+				} else {
 					break
 				}
 			}
-		}
-		if j > i+1 {
-			fmt.Printf("found multiline block: %q\n", lines[i:j])
-			i = j - 1
-			blockEnd = j - 1
-		}
-
-		if strings.HasPrefix(tag, "li") {
-			// TODO: has unexpected feature - possible reference nesting
-			tag = "li"
-			l := i + 1
-			if i < len(lines)-1 {
-				firstBlank := false // phat items consume following blank lines
-				blankOnly := true
-				for l < len(lines) {
-					if isBlankLine(lines[l]) {
-						if l == i+1 {
-							firstBlank = true
-						}
-						l++
-					} else if strings.HasPrefix(lines[l], "    ") {
-						blankOnly = false
-						l++
+			if prefixLen == len(l) {
+				// blank line
+				// update last prefix when differs in terms of '>' (?)
+				// TODO: when update lastToken?
+				fmt.Printf("%3d: %s @@@@@@@@@@\n", i+1, l[:prefixLen])
+				out[i] = mdLine{Nr: i}
+				lastToken = ""
+				// TODO: close block here
+				continue
+			}
+			// cutting trailing spaces - TODO: if after a li, 4 are acceptable!
+			checkStart := k
+			// if strings.HasPrefix(prefix, lastPrefix) {
+			// 	checkStart = len(lastPrefix)
+			// }
+			if prefixLen > checkStart {
+				for prefixLen >= checkStart+1 {
+					if l[prefixLen-1] == ' ' {
+						prefixLen--
 					} else {
 						break
 					}
 				}
-				if !firstBlank || blankOnly {
-					// return trailing blank lines if no phat item
-					for isBlankLine(lines[l-1]) {
-						l--
-					}
+				if prefixLen > 0 {
+					cutSpace = 1
 				}
 			}
-
-			if l > i+1 {
-				fmt.Printf("Found li content (%d:%d): %qEOT\n", i+1, l+1, lines[i:l])
-				container = mdTokR(lines[i+1:l], pre+"....", 4)
-				i = l - 1
+			prefix = l[:prefixLen]
+		}
+		if prefixLen > len(lastPrefix) {
+			fmt.Printf("DETECTED INSIDE:\n   OUT: %s@\n   IN:  %s@\n\n", lastPrefix, prefix)
+		}
+		if strings.HasPrefix(lastToken, "li") {
+			if strings.HasPrefix(l[prefixLen:], "    ") {
+				fmt.Printf("DETECTED INSIDE LIST:\n   OUT: %s\n   IN:  %s\n\n", lines[i-1], lines[i])
+				prefix += "    "
+				prefixLen = len(prefix)
 			}
 		}
 
-		if tag == "hr" && strings.HasPrefix(lines[i], "---") && prevTag == "p" { // TODO: rather token hr/settext underline
-			fmt.Printf("Settext h2 candidate:\n%s\n%s\n\n", lines[i-1], lines[i])
-		}
-		if tag == "h1" && strings.HasPrefix(lines[i], "===") && prevTag == "p" { // TODO: similarily
-			fmt.Printf("Settext h1 candidate:\n%s\n%s\n\n", lines[i-1], lines[i])
-		}
-
-		line := mdLine{Nr: baseLine, Tag: tag, Text: unescapeLine(lines[baseLine][len(mark):]), Prefix: pre, Join: join, Marker: mark}
-		out = append(out, line)
-		for ln := baseLine + 1; ln <= blockEnd; ln++ {
-			line := mdLine{Nr: ln, Tag: tag, Text: unescapeLine(lines[ln]), Prefix: pre, Join: true}
-			out = append(out, line)
+		mark, token := getLineMark(l[prefixLen:])
+		join := false
+		if mark == "" && lastToken != "" {
+			join = true
 		}
 
-		if len(container) > 0 {
-			out = append(out, container...)
+		cutLen := min(len(l), prefixLen+cutSpace+len(mark))
+		text := l[cutLen:]
+		fmt.Printf("%3d: %s@%s   last=%s\n", i+1, prefix, text, lastToken)
+		if join {
+			text += " %" + lastToken
 		}
 
-		fmt.Printf("%s %3d: %s\n", pre, i+1, lines[i])
-		prevTag = tag
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix, Text: text, Join: join}
+
+		if join {
+			continue
+		}
+
+		lastToken = token
+		lastPrefix = prefix
 	}
+
 	return out
 }
 
 func unescapeLine(l string) string {
-	if len(l) >= 2 { // escaped char, actually to be meaningful, requires 3, 4?
+	if len(l) >= 2 { // escaped char, actually to be meaningful, requires len of 3, 4?
 		// TODO: handle only block marks escaping!
 		if l[0] == '\\' {
 			return l[1:]

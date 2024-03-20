@@ -2,6 +2,39 @@
 
 ## Current
 
+### Interface MdTok -> MdTree (and MdFlow TODO)
+
+- Separation of concerns
+- Where does flow content processing go?
+
+1. MdTok
+    - tell what each line is
+        - is in blockquote 
+        - is a literal pre text
+        - is a heading, paragraph
+        - a list item (incl. logical nesting)
+2. MdTree
+    - use MdTok output directly
+    - process flow content (?)
+    - output AST
+
+### Idea: Tags vs tokens.
+
+- Tags: acceptable output HTML tags
+- Tokens:
+    - hr 
+    - hr/hst2 -> test neighbours
+    - hst1
+    - li+type
+    - pre
+    - p - default
+
+#### Fenced code vs pre - don't merge!
+
+Separate token.
+
+### Processing
+
 - List type handling
 - dl, dt, dd grouping
     - TODO: how
@@ -9,11 +42,12 @@
         - rules: term in single line?
         - wrappable definitions?
 
-        Show
-        goose
-        : a aprticular species of geese
-            that lives somewhere and eats something
-        : a goose made of snow
+            Snow
+            goose
+            : a aprticular species of geese
+                that lives somewhere and eats something
+            : a goose made of snow
+
 - "smart" block patterns
     - figures 
     - heading + list sections

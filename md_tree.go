@@ -48,7 +48,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		currList.Children = append(currList.Children, addNode)
 	}
-	fmt.Printf("MD TREE CALL %s\n", rootTag)
+	fmt.Printf("MD TREE BEGIN %s\n", rootTag)
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -68,28 +68,38 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			j++
 		}
 		if j-i > 0 {
-			addChildNode(*MdTree(lines[i:j], depth+2, "blockquote"))
+			addChildNode(*MdTree(lines[i:j], depth+4, "blockquote"))
 			i = j - 1
 			continue
 		}
 
-		// JOIN next lines if needed, advance i to tell the logical next line
-		// TODO: check if needs isBreakable checks
-		var joinText string
-		j = i + 1
-		for j = i + 1; j < len(lines); j++ {
-			if !lines[j].Join {
-				break
-			}
-			fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
-			// TODO block text join wrapped lines here
-			joinText += lines[j].Text
-			i++
-		}
-
-		tag := "p" // default tag; todo check meaningful indentation
-		if l.Tag != "" {
+		tag := "p"       // default tag; todo check meaningful indentation
+		if l.Tag != "" { // TODO: check actual tag vs token here
 			tag = l.Tag
+		}
+		var joinText string
+		if tag == "pre" {
+			for j := i + 1; j < len(lines); j++ {
+				if lines[j].Tag != "pre" {
+					break
+				}
+				joinText += "\n" + lines[j].Text
+				i++
+			}
+
+		} else { // regular block - normalize ws
+			// JOIN next lines if needed, advance i to tell next block
+			// TODO: check if needs isBreakable checks
+			for j = i + 1; j < len(lines); j++ {
+				if !lines[j].Join {
+					break
+				}
+				fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
+				// TODO block text join wrapped lines here
+				// TODO: trailing ws handling: strip/add
+				joinText += lines[j].Text
+				i++
+			}
 		}
 
 		n := MdNode{
@@ -110,8 +120,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			if i < len(lines)-1 && strings.HasPrefix(lines[i+1].Tag, "li") && prefixInside4s(l.Prefix, lines[i+1].Prefix) {
 				// Simple item with a nested list
 				// next line is not blank.
-				diff := prefixInsideN(l.Prefix, lines[i+1].Prefix)
-				fmt.Printf("Simple item with nested list, diff=%d\n", diff)
 
 				// simplified: TODO
 				// now just checking prefix inside to take into simple item with sublist
@@ -120,8 +128,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
 				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
 					fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(l.Prefix, lines[j].Prefix))
-					d := prefixInsideN(l.Prefix, lines[j].Prefix)
-					fmt.Printf(" - - - - list, diff=%d\n", d)
 					j++
 				}
 				if j-i > 0 {
@@ -140,7 +146,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 					// compound li handling - consumes any adjacent blank lines (!)
 					// while either blank or prefix inside, put to the li.container
 					j := i + 1
-					// TODO: check prefixInside at least 4 spaces?
 					for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
 						j++
 					}
@@ -161,15 +166,15 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 	return &root
 }
 
-func prefixInside(in, pre string) bool {
-	if len(in) >= len(pre) {
-		return false
-	}
-	if pre[:len(in)] != in {
-		return false
-	}
-	return true
-}
+// func prefixInside(in, pre string) bool {
+// 	if len(in) >= len(pre) {
+// 		return false
+// 	}
+// 	if pre[:len(in)] != in {
+// 		return false
+// 	}
+// 	return true
+// }
 
 func prefixInside4s(in, pre string) bool {
 	if len(in) >= len(pre) {
@@ -179,26 +184,26 @@ func prefixInside4s(in, pre string) bool {
 		return false
 	}
 	diff := pre[len(in):]
-	if strings.HasPrefix(diff, "    ") { // a TAB
+	if strings.HasPrefix(diff, "....") { // a TAB
 		return true
 	}
 	return false
 }
 
 // Check how much spaces (till any other character) the second prefix is more indented than the first
-func prefixInsideN(in, pre string) int {
-	if len(in) >= len(pre) {
-		return 0
-	}
-	if pre[:len(in)] != in {
-		return 0
-	}
-	diff := pre[len(in):]
-	n := 0
-	for ; n < len(diff); n++ {
-		if diff[n] != ' ' {
-			break
-		}
-	}
-	return n
-}
+// func prefixInsideN(in, pre string) int {
+// 	if len(in) >= len(pre) {
+// 		return 0
+// 	}
+// 	if pre[:len(in)] != in {
+// 		return 0
+// 	}
+// 	diff := pre[len(in):]
+// 	n := 0
+// 	for ; n < len(diff); n++ {
+// 		if diff[n] != '.' {
+// 			break
+// 		}
+// 	}
+// 	return n
+// }
