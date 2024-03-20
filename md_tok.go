@@ -48,10 +48,9 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 	out := make([]mdLine, len(lines))
 
-	// lastBlock (?)
-	// lastTag := ""
-	lastToken := ""
+	lastToken := "" // actually: last block kind
 	lastPrefix := ""
+	lastBlock := 0
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -67,13 +66,13 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			continue
 		}
 		if len(l) > 0 { // condition order, nesting?
-			k := 0
-			for ; k < len(l) && k < len(lastPrefix); k++ {
-				if l[k] != lastPrefix[k] {
+			keep := 0 // common prefix length with lastPrefix; keep it
+			for ; keep < len(l) && keep < len(lastPrefix); keep++ {
+				if l[keep] != lastPrefix[keep] {
 					break
 				}
 			}
-			prefixLen = k
+			prefixLen = keep
 			for ; prefixLen < len(l); prefixLen++ {
 				if strings.HasPrefix(l[prefixLen:], "    ") {
 					break
@@ -93,12 +92,12 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 				// TODO: when update lastToken?
 				fmt.Printf("%3d: %s @@@@@@@@@@\n", i+1, l[:prefixLen])
 				out[i] = mdLine{Nr: i}
-				lastToken = ""
-				// TODO: close block here
+				lastToken = "" // keep container, reset block
 				continue
 			}
-			// cutting trailing spaces - TODO: if after a li, 4 are acceptable!
-			checkStart := k
+			// cutting trailing spaces -
+			// TODO: (here?) if after a li, 4 are acceptable!
+			checkStart := keep
 			// if strings.HasPrefix(prefix, lastPrefix) {
 			// 	checkStart = len(lastPrefix)
 			// }
@@ -126,11 +125,24 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 				prefixLen = len(prefix)
 			}
 		}
+		// prefix is updated if needed
 
 		mark, token := getLineMark(l[prefixLen:])
 		join := false
 		if mark == "" && lastToken != "" {
 			join = true
+		}
+
+		if lastToken == "p" && token == "hr" { // p
+			out[lastBlock].Tag, token = "h2", "h2"
+			join = true
+		} else if token == "dd" {
+			if lastToken == "p" {
+				out[lastBlock].Tag = "dt"
+			} else if lastToken != "dt" {
+				token = "p"
+				mark = ""
+			}
 		}
 
 		cutLen := min(len(l), prefixLen+cutSpace+len(mark))
@@ -140,6 +152,10 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			text += " %" + lastToken
 		}
 
+		// TODO: block marking specification
+		if !join && token == "" {
+			token = "p"
+		}
 		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix, Text: text, Join: join}
 
 		if join {
@@ -148,6 +164,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		lastToken = token
 		lastPrefix = prefix
+		lastBlock = i
 	}
 
 	return out

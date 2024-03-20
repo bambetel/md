@@ -125,6 +125,9 @@ list item
     2. escaping
     \3. test
 3. Also wrapped, but in much more
+   3. Test case - a sibling or a child?
+    a. with nesting
+3. Also wrapped, but in much more
    elegant a way
     a. with nesting
     b. works
@@ -141,6 +144,10 @@ Edge
 case
 : A situation provoked to prove Markdown dumb
 
+: honk and quack
+Messy geese
+
+: standalone definition is a regular p
 
 
 [1]: Reference
