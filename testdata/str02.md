@@ -39,6 +39,7 @@ Or just 3, 2, 1 spaces
    like here, however no apparent marker allowed.
 
 > Space after `>` is required (?).
+>          merged to the previous line. 
 > 
 > Blockquote second paragraph.
 >
@@ -144,11 +145,29 @@ Edge
 case
 : A situation provoked to prove Markdown dumb
 
+Even more
+        edgy!
+: definition - that should be a dt+dd with lazy evaluation
+
+   And this...
+      looks terrible!!! 
+         But is a heading...
+---
+
 : honk and quack
 Messy geese
 
 : standalone definition is a regular p
 
+: inverse,
+line merging still works!
+
+1. Funny case - thing below should be merged
+: definition
+: this is not a definition, second joined line
+
+1. Funny case - thing below should be merged
+compare this
 
 [1]: Reference
 

@@ -89,7 +89,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 				// update last prefix when differs in terms of '>' (?)
 				// TODO: when update lastToken?
 				fmt.Printf("%3d: %s @@@@@@@@@@\n", i+1, l[:prefixLen])
-				out[i] = mdLine{Nr: i}
+				out[i] = mdLine{Nr: i, Prefix: l}
 				lastToken = "" // keep container, reset block
 				continue
 			}
@@ -112,58 +112,117 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		if prefixLen > len(lastPrefix) {
 			fmt.Printf("DETECTED INSIDE:\n   OUT: %s@\n   IN:  %s@\n\n", lastPrefix, l[:prefixLen])
 		}
+		if prefixLen > 0 {
+			if l[prefixLen-1] == '>' && prefixLen < len(l) {
+				if l[prefixLen] == ' ' {
+					prefixLen++
+				}
+			}
+		}
 
-		join := true
+		// TODO: should pre lines be marked as joined here at all?
+		join := false
 
 		mark, token := getLineMark(l[prefixLen:])
-		if mark != "" {
-			join = false
-		} else if prefixLen < len(lastPrefix) {
+
+		// special fixes - look back
+		setTag := ""
+		if token == "h1set" {
+			if lastToken == "p" {
+				setTag = "h1"
+			} else {
+				mark = ""
+				token = ""
+			}
+		} else if lastToken == "p" && token == "hr" &&
+			strings.HasPrefix(strings.TrimSpace(l[prefixLen:]), "---") { // TODO: no spaces
+			setTag = "h2"
+		} else if token == "dd" {
+			if lastToken == "p" {
+				setTag = "dt"
+			} else if lastToken != "dt" {
+				if lastToken == "" {
+					token = "" // no join check; would start a new block anyway?
+				} else {
+					token = ""
+				}
+				mark = ""
+			}
+		}
+		if setTag != "" { // loop for edge cases; reasonable use would be a single line in case of h1, h2, dt
+			for j := i - 1; j >= 0 && j >= lastBlock; j-- {
+				out[j].Tag = setTag
+				if j != lastBlock {
+					out[j].Join = true
+				}
+			}
+			join = true
+			lastToken = ""
+			goto joinSet
+		}
+
+		if mark != "" ||
+			prefixLen < len(lastPrefix) ||
+			len(strings.TrimRight(l[:prefixLen], " ")) != len(strings.TrimRight(lastPrefix, " ")) ||
+			lastToken == "" {
 			// new block
 			join = false
 		} else if mark == "" && lastToken != "" {
 			join = true
 		}
-		if lastToken == "" {
+		if !join && token == "" {
+			token = "p"
+		}
+		if strings.HasPrefix(l[prefixLen:], "    ") {
+			if !join && token == "p" {
+				token = "pre"
+			} else if lastToken == "pre" {
+				join = true
+				token = "pre"
+			}
+		} else if lastToken == "pre" {
+			token = "p"
 			join = false
 		}
-
-		// special fixes - look back
-		if lastToken == "p" && token == "hr" { // p
-			out[lastBlock].Tag = "h2"
-			token = "h2"
-			join = true
-		} else if token == "dd" {
-			if lastToken == "p" {
-				out[lastBlock].Tag = "dt"
-			} else if lastToken != "dt" {
-				token = "p"
-				mark = ""
-			}
-		}
+	joinSet:
 
 		// if (lastToken == "" || lastToken == "pre") && strings.HasPrefix(l[prefixLen:], "    ") {
 		// 	token = "pre"
 		// }
-
+		if join && token == "" {
+			token = lastToken
+		}
 		prefix := l[:prefixLen]
 
 		cutLen := min(len(l), prefixLen+len(mark))
 		text := unescapeLine(l[cutLen:])
 		fmt.Printf("%3d: %s@%s   last=%s\n", i+1, prefix, text, lastToken)
-		if join {
-			text += " %" + lastToken
-		}
 
-		// TODO: block marking specification
-		if !join && token == "" {
-			token = "p"
+		// // TODO: block marking specification
+		// if token == "" && strings.HasPrefix(text, "    ") && (lastToken == "" || lastToken == "pre") {
+		// 	token = "pre"
+		// } else if join && token == "" {
+		// 	join = false
+		// 	token = "p"
+
+		// save lastToken here
+		if !isBreakable(token) {
+			lastToken = ""
+		} else if !join {
+			lastToken = token
 		}
+		// }
+		// if token == "" {
+		// 	if strings.HasPrefix(text, "    ") {
+		// 		token = "pre"
+		// 	} else {
+		// 		token = "p"
+		// 	}
+		// }
 		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix, Text: text, Join: join}
 
 		if !join {
 			// new block
-			lastToken = token
 			lastPrefix = prefix
 			if strings.HasPrefix(token, "li") {
 				lastChild = prefix + "    "
@@ -212,7 +271,7 @@ func getLineMark(line string) (mark string, tag string) {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
 		return line[0:3], "pre"
 	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
-		return line, "h1"
+		return line, "h1set"
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		return ": ", "dd"
 	case isHR(line):
