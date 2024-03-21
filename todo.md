@@ -31,6 +31,8 @@
 
 #### Fenced code vs pre - don't merge!
 
+Fenced code handling - same prefix required.
+
 Separate token.
 
 ### Processing

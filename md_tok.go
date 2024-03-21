@@ -124,6 +124,28 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		join := false
 
 		mark, token := getLineMark(l[prefixLen:])
+		if token == "pre:fence" {
+			fmt.Printf("FENCE: %s\n", lines[i])
+			out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Marker: lines[i][prefixLen:], Join: false}
+			prefix := lines[i][:prefixLen]
+			for i++; i < len(lines); i++ {
+				if len(lines[i]) < prefixLen {
+					i--
+					break // not closed!
+				}
+				if !strings.HasPrefix(lines[i], prefix) {
+					i--
+					break // not closed!
+				}
+				if strings.HasPrefix(lines[i][prefixLen:], mark) {
+					out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Text: "", Join: true}
+					break // closing
+				}
+				out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Text: lines[i][prefixLen:], Join: true}
+			}
+			lastToken = ""
+			continue
+		}
 
 		// special fixes - look back
 		setTag := ""
@@ -269,7 +291,7 @@ func getLineMark(line string) (mark string, tag string) {
 
 	switch {
 	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
-		return line[0:3], "pre"
+		return line[0:3], "pre:fence"
 	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
 		return line, "h1set"
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
