@@ -80,7 +80,7 @@ and this is a next paragraph.
 
 1. list item
 2. second list item
-    
+
     A paragraph inside a li.
 
     The second paragraph.
@@ -110,9 +110,10 @@ and this is a next paragraph.
 2. Compound item
     a. sublist 1 first
     b. sublist 1 second
+            - test
         - subsublist 1 first
         - subsublist 1 second
-
+    c. third letter item
 3. A new list
 4. Because previous items were compact nested
 
@@ -124,7 +125,7 @@ list item
 2. Should be treated like a p.
     1. sublist
     2. escaping
-    \3. test
+    \3. test - escaped list marker `\3. test`
 3. Also wrapped, but in much more
    3. Test case - a sibling or a child?
     a. with nesting

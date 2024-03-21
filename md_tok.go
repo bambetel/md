@@ -67,6 +67,9 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			keep := 0 // common prefix length with lastPrefix; keep it
 			for ; keep < len(l) && keep < len(lastChild); keep++ {
 				if l[keep] != lastChild[keep] {
+					if keep > len(lastChild)-4 {
+						keep = max(0, len(lastChild)-4)
+					}
 					break
 				}
 			}
@@ -120,10 +123,36 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			}
 		}
 
+		if len(strings.TrimSpace(l[prefixLen:])) == 0 {
+			// empty line left; no special meaning
+			prefix := l[:prefixLen]
+			lastPrefix = prefix
+			lastChild = prefix
+			lastBlock = i
+			lastToken = ""
+			fmt.Printf("TEST001\n")
+			out[i] = mdLine{Nr: i, Prefix: l}
+			continue
+		}
 		// TODO: should pre lines be marked as joined here at all?
 		join := false
 
-		mark, token := getLineMark(l[prefixLen:])
+		// allow up to 3 spaces in front of each element; trim them
+		cutSpaces := 0
+		test := l[prefixLen:] // TODO: nicer:
+		if (strings.HasPrefix(test, " ") || strings.HasPrefix(test, "  ") || strings.HasPrefix(test, "  ")) && !strings.HasPrefix(test, "    ") {
+			for ; cutSpaces < 3; cutSpaces++ {
+				if test[cutSpaces] != ' ' {
+					break
+				}
+			}
+		}
+
+		mark, token := getLineMark(l[prefixLen+cutSpaces:])
+		if cutSpaces > 0 {
+			fmt.Printf("CUT %d: (%s)%s$\n", cutSpaces, mark, token)
+		}
+
 		if token == "pre:fence" {
 			fmt.Printf("FENCE: %s\n", lines[i])
 			out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Marker: lines[i][prefixLen:], Join: false}
@@ -156,18 +185,18 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 				mark = ""
 				token = ""
 			}
-		} else if lastToken == "p" && token == "hr" &&
-			strings.HasPrefix(strings.TrimSpace(l[prefixLen:]), "---") { // TODO: no spaces
-			setTag = "h2"
+		} else if token == "h2set" {
+			if lastToken == "p" {
+				setTag = "h2"
+				token = "h2" // patch
+			} else {
+				token = "hr" // patch
+			}
 		} else if token == "dd" {
 			if lastToken == "p" {
 				setTag = "dt"
 			} else if lastToken != "dt" {
-				if lastToken == "" {
-					token = "" // no join check; would start a new block anyway?
-				} else {
-					token = ""
-				}
+				token = ""
 				mark = ""
 			}
 		}
@@ -216,7 +245,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		}
 		prefix := l[:prefixLen]
 
-		cutLen := min(len(l), prefixLen+len(mark))
+		cutLen := min(len(l), prefixLen+cutSpaces+len(mark))
 		text := unescapeLine(l[cutLen:])
 		fmt.Printf("%3d: %s@%s   last=%s\n", i+1, prefix, text, lastToken)
 
@@ -294,6 +323,8 @@ func getLineMark(line string) (mark string, tag string) {
 		return line[0:3], "pre:fence"
 	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
 		return line, "h1set"
+	case reSettextUnderH2.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
+		return line, "h2set"
 	case strings.HasPrefix(line, ": "): // extension dl > (dt + dd+)+
 		return ": ", "dd"
 	case isHR(line):

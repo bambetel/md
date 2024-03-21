@@ -27,6 +27,12 @@ a. Ej
       2. Subitem2
 
           > 2. Subitem Quote
+          >
+          >      indent Subitem Quote
+
+          >           test 
+
+          >           indent Subitem Quote
 
     3. Subitem3
 b. Bi 
@@ -79,8 +85,20 @@ b. should make three list of this apparent block
 ### Example - what is it? Li block continuation, as above or none of them?
 
 1. One Final
-    > Inserted blockquote
-    > inside a list item
+    > Inserted blockquote - this should not be a blockquote, only 
+    > Looking for list items in simple nesting in this setting!
 
 2. Two Final
 3. Three Final
+Just after an item. Assume "3" is hard-wrapped.
+
+4. Other list
+    Four spaces, but not extra prefix!
+
+4. Other list
+    1. Four spaces, and extra prefix!
+4. Other list
+
+    > Blockquote
+
+    A regular p

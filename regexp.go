@@ -13,5 +13,6 @@ var (
 	reLiUL           = regexp.MustCompile("^[-+*]\\s+")
 	reLiCheck        = regexp.MustCompile("^[-+*]\\s+\\[[ x]\\]\\s+")
 	reRef            = regexp.MustCompile("^\\[\\w+\\]:\\s+")
-	reSettextUnderH1 = regexp.MustCompile("^={3,}\\s*$") // TODO handling trailing spaces?
+	reSettextUnderH1 = regexp.MustCompile("^={3,}\\s*$") // TODO: handling trailing spaces?
+	reSettextUnderH2 = regexp.MustCompile("^-{3,}\\s*$") // TODO: and beginning up to 3?
 )
