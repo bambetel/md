@@ -2,6 +2,12 @@
 
 ## Current
 
+### Fenced code support
+
+### List types
+
+- separate lists if different marker?
+
 ### Prefix recognition
 
 - spaces go in equal fours (relation to tabstop?)
