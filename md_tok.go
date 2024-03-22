@@ -8,10 +8,6 @@ import (
 	"strings"
 )
 
-// Md tokenizer, parser functions
-// Assumes (at least leading, meaningful in Md) spacing normalized to space
-// characters using tabstop value.
-
 type mdLine struct {
 	Nr     int
 	Join   bool
@@ -23,6 +19,9 @@ type mdLine struct {
 
 // TODO: needed (?), rules, which tags, where (in pre blank lines are preserved literally)
 func (ml *mdLine) IsBlank() bool {
+	if ml.Tag == "---" {
+		return true
+	}
 	return ml.Text == "" && ml.Tag == ""
 }
 
@@ -34,8 +33,9 @@ func (ml *mdLine) LimitPrefix(l int) string {
 	return ml.Prefix[l:]
 }
 
-// TODO: function description
-
+// Return a table of interpreted Markdown lines matching the input lines.
+// Prefixes and block markers are logically normalized.
+// Block-level elements are assigned their meaning including dl extension.
 func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	scanner := bufio.NewScanner(r)
 	lines := make([]string, 0, 32)
@@ -57,20 +57,12 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		join := false
 
 		prefix, prefixLen := lastPrefix.Common(l)
-		// Grow Bq prefix if new present
-		// TODO: bq marker indentation tolerance?
-		for strings.HasPrefix(l[prefixLen:], ">") {
-			cut := 1
-			if strings.HasPrefix(l[prefixLen:], "> ") {
-				cut = 2
-			}
-			prefix.PushBq()
-			prefixLen += cut
-		}
+		prefixLen += prefix.AppendBqs(l[prefixLen:])
 		samePrefix := lastPrefix.Equals(prefix) || lastPrefix.EqualsN(prefix, lastPrefix.Len()-1) && lastPrefix.PeekKind() == mdPrefixLi
-		if samePrefix {
-			fmt.Printf("%3d: prefix merged: [%v]==[%v]\n", i, lastPrefix, prefix)
-		}
+
+		// if samePrefix {
+		// 	fmt.Printf("%3d: prefix merged: [%v]==[%v]\n", i, lastPrefix, prefix)
+		// }
 
 		text, cutTolerance := lineTolerance(l[prefixLen:])
 		if isBlankLine(text) {
@@ -140,7 +132,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		if !join {
 			blockStart = i
 		}
-		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text + fmt.Sprintf("[%d]", blockStart), Join: join}
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text, Join: join}
 	}
 
 	return out

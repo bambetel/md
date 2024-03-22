@@ -7,12 +7,17 @@ nostrud _ipsum_ Lorem est aliquip amet voluptate voluptate dolor minim nulla est
 proident. 
         > This is to check if indentation check is ok.
     > This too.
+   > Quote?! Only 3 spaces.
 > this might be a blockquote...
  > And this? Lazy evaluation?
+  > > Very lazy, just BQ, BQ tokens.
+  >  > Very lazy, just BQ, BQ tokens.
+  > >
 >    > This is what?
 >     > This for sure a literal text
 
     Indented text - prefix is null
+> quote breaks pre
 
 ## Test for
 no heading hard-wrapping

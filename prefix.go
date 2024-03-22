@@ -1,7 +1,6 @@
 package md
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -21,13 +20,14 @@ const (
 
 type mdPrefixPart struct {
 	Kind mdPrefixType
-	Str  string
+	Str  string // TODO: necessary? Maybe handling only normalized prefixes
 }
 
 type mdPrefix struct {
 	parts []mdPrefixPart
 }
 
+// Return normalized string representing the Markdown prefix
 func (mp *mdPrefix) String() string {
 	join := strings.Builder{}
 	for i := range mp.parts {
@@ -36,18 +36,7 @@ func (mp *mdPrefix) String() string {
 	return join.String()
 }
 
-func (mp *mdPrefix) Push(s string) {
-	t := mdPrefixNone
-	if strings.IndexByte(s, '>') != -1 {
-		t = mdPrefixBq
-	} else {
-		t = mdPrefixLi
-	}
-	if t != mdPrefixNone {
-		mp.parts = append(mp.parts, mdPrefixPart{t, s})
-	}
-}
-
+// Push normalized prefix for a container element
 func (mp *mdPrefix) PushLi() {
 	mp.parts = append(mp.parts, mdPrefixPart{mdPrefixLi, "    "})
 }
@@ -55,6 +44,7 @@ func (mp *mdPrefix) PushBq() {
 	mp.parts = append(mp.parts, mdPrefixPart{mdPrefixBq, "> "}) // TODO: `> ` OR `>`?
 }
 
+// Check if both prefixes are logically equivalent
 func (mp *mdPrefix) Equals(other mdPrefix) bool {
 	if len(mp.parts) != len(other.parts) {
 		return false
@@ -67,6 +57,8 @@ func (mp *mdPrefix) Equals(other mdPrefix) bool {
 	return true
 }
 
+// Check if the first n elements of both prefixes are logically equivalent
+// if any of the prefixes is too short, false is returned.
 func (mp *mdPrefix) EqualsN(other mdPrefix, n int) bool {
 	if len(mp.parts) < n || len(other.parts) < n {
 		return false
@@ -79,6 +71,10 @@ func (mp *mdPrefix) EqualsN(other mdPrefix, n int) bool {
 	return true
 }
 
+// Get the longest possible common prefix for mp and the string
+// not in terms of apparent text columns but logical containers,
+// for example " >  > " means the same as ">>".
+// Return the number of characters consumed (final marker is either '>' or '> ').
 func (mp *mdPrefix) Common(l string) (prefix mdPrefix, prefixLen int) {
 match:
 	for _, part := range mp.parts {
@@ -91,6 +87,18 @@ match:
 				break match
 			}
 		case mdPrefixBq:
+			retry := 0
+			for ; retry < 4 && prefixLen < len(l); retry++ {
+				if l[prefixLen+retry] == '>' {
+					break
+				}
+				if l[prefixLen+retry] != ' ' {
+					break
+				}
+			}
+			if retry <= 3 {
+				prefixLen += retry
+			}
 			if strings.HasPrefix(l[prefixLen:], ">") {
 				cut := 1
 				if strings.HasPrefix(l[prefixLen:], "> ") {
@@ -106,6 +114,33 @@ match:
 		}
 	}
 	return
+}
+
+// Get blockquote markers (exclude literal '>') from the string.
+// Return number of characters consumed (final marker is either '>' or '> ').
+func (mp *mdPrefix) AppendBqs(l string) (prefixLen int) {
+	for {
+		retry := 0
+		ok := false
+		for ; retry < 4 && prefixLen+retry < len(l); retry++ {
+			if strings.HasPrefix(l[prefixLen+retry:], ">") {
+				ok = true
+				break
+			}
+		}
+		if ok {
+			prefixLen += retry
+		} else {
+			break
+		}
+		cut := 1
+		if strings.HasPrefix(l[prefixLen:], "> ") {
+			cut = 2
+		}
+		mp.PushBq()
+		prefixLen += cut
+	}
+	return prefixLen
 }
 
 func (mp *mdPrefix) Match(s string) (n int, total bool) {
@@ -137,18 +172,6 @@ func (mp *mdPrefix) Match(s string) (n int, total bool) {
 	}
 	return n, false
 }
-func (mp *mdPrefix) Same(s string) bool {
-	if n, total := mp.Match(s); n == len(mp.parts) && total == true {
-		return true
-	}
-	return false
-}
-func (mp *mdPrefix) HasPrefix(s string) bool {
-	if _, total := mp.Match(s); total {
-		return true
-	}
-	return false
-}
 
 func (mp *mdPrefix) Len() int {
 	return len(mp.parts)
@@ -162,76 +185,9 @@ func (mp *mdPrefix) Pop() (res string) {
 	return
 }
 
-func (mp *mdPrefix) Peek() (str string, kind mdPrefixType) {
-	if len(mp.parts) > 0 {
-		item := &mp.parts[len(mp.parts)-1]
-		str = item.Str
-		kind = item.Kind
-	}
-	return
-}
 func (mp *mdPrefix) PeekKind() (kind mdPrefixType) {
 	if len(mp.parts) == 0 {
 		return mdPrefixNone
 	}
 	return mp.parts[len(mp.parts)-1].Kind
-}
-
-func (mp *mdPrefix) New(s string, prev mdPrefix) {
-	spaces := 0
-	i := 0
-	for ; i < len(s); i++ {
-		if s[i] == '>' {
-			spaces = 4 // or 5?
-			mp.parts = append(mp.parts, mdPrefixPart{Kind: mdPrefixBq, Str: ""})
-			continue
-		}
-		if s[i] == ' ' {
-			if spaces == 0 {
-				break
-			}
-			spaces--
-		} else {
-			break
-		}
-	}
-	fmt.Printf("New: [%s]\n", s[:i])
-}
-
-func isMdPrefixChar(c byte) bool {
-	switch c {
-	case ' ', '>':
-		return true
-	default:
-		return false
-	}
-}
-
-func getMaxMdPrefix(s string) string {
-	for i := range s {
-		if !isMdPrefixChar(s[i]) {
-			return s[:i]
-		}
-	}
-	return s
-}
-
-func getNewMdPrefix(s string) string {
-	spaces := 3
-	i := 0
-	for ; i < len(s); i++ {
-		if s[i] == '>' {
-			spaces = 4 // or 5?
-			continue
-		}
-		if s[i] == ' ' {
-			if spaces == 0 {
-				break
-			}
-			spaces--
-		} else {
-			break
-		}
-	}
-	return s[:i]
 }

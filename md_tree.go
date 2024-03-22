@@ -63,9 +63,9 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		// blockquote handling
 		j := i
-		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), ">") {
+		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), "> ") { // assume normalized to '> '
 			// TODO valid bq mark check `> word` or `>`
-			j++
+			j += 2
 		}
 		if j-i > 0 {
 			addChildNode(*MdTree(lines[i:j], depth+4, "blockquote"))
@@ -184,7 +184,7 @@ func prefixInside4s(in, pre string) bool {
 		return false
 	}
 	diff := pre[len(in):]
-	if strings.HasPrefix(diff, "....") { // a TAB
+	if strings.HasPrefix(diff, "    ") { // a TAB
 		return true
 	}
 	return false
