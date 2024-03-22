@@ -46,17 +46,17 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	out := make([]mdLine, len(lines))
 
 	lastPrefix := mdPrefix{}
+	lastToken := "---"
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
 		mark := ""
-		token := "---"
+		token := ""
 		pushLi := false
-
-		fmt.Printf("%3d: [%s]\n", i, l)
-		fmt.Printf("[PREV: %q]\n", lastPrefix)
+		join := false
 
 		prefix, prefixLen := lastPrefix.Common(l)
+		samePrefix := len(prefix.parts) == len(lastPrefix.parts) || len(prefix.parts) == len(lastPrefix.parts)-1 && lastPrefix.PeekKind() == mdPrefixLi
 		// Grow Bq prefix if new present
 		// TODO: bq marker indentation tolerance?
 		for strings.HasPrefix(l[prefixLen:], ">") {
@@ -68,58 +68,51 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			prefixLen += cut
 		}
 
-		fmt.Printf("%d:\n\t%v\nOUT: %v\n\n", i, lastPrefix, prefix)
-		fmt.Println()
-
-		text := l[prefixLen:]
-		cutLine, cut := lineTolerance(text)
+		text, cutTolerance := lineTolerance(l[prefixLen:])
 		if isBlankLine(text) {
-			text = ""
+			token = "---"
 			goto blank
 		}
-		// Separately because can have container
-		if cut {
-			fmt.Printf(`Cut line: "%s"->"%s"\n`, text, cutLine)
-			text = cutLine
-		}
-		if mark, pushLi = isLiBegin(text); pushLi {
-			text = l[prefixLen+len(mark):]
+		if mark, token = getLineMark(text); strings.HasPrefix(token, "li") {
+			pushLi = true
 		}
 
-		// check if withing the last prefix
-		// no change - keep block
-		// any change - new block
+		fmt.Printf("%d: [%s]\n\t%v\n\t%v --> %v\n\n", i, l, lastPrefix, prefix, samePrefix)
+		fmt.Println()
 
-		token = "P"
+		if samePrefix && mark == "" && lastToken != "---" && isBreakable(lastToken) {
+			join = true
+		}
+		if token == "" {
+			token = "p"
+		}
+
 		lastPrefix = prefix
 		if pushLi {
 			lastPrefix.PushLi()
 		}
 	blank:
-		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text}
+		text = unescapeLine(l[prefixLen+cutTolerance+len(mark):]) + fmt.Sprintf(" cut=%d", cutTolerance)
+		lastToken = token
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text, Join: join}
 	}
 
 	return out
 }
 
-func isLiBegin(s string) (string, bool) {
-	mark, token := getLineMark(s)
-	return mark, strings.HasPrefix(token, "li")
-}
-
 var reTolerate3Sp = regexp.MustCompile("^ {0,3}\\S")
 
-func lineTolerance(s string) (string, bool) {
+func lineTolerance(s string) (string, int) {
 	cut := 0
 	if reTolerate3Sp.MatchString(s) {
-		for ; cut < len(s); cut++ {
+		for ; cut < len(s) && cut <= 3; cut++ {
 			if s[cut] != ' ' {
 				break
 			}
 		}
-		return s[cut:], cut > 0
+		return s[cut:], cut
 	}
-	return "", false
+	return s, 0
 }
 
 func unescapeLine(l string) string {
