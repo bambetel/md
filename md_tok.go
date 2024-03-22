@@ -72,7 +72,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		if mark, token = getLineMark(text); strings.HasPrefix(token, "li") {
 			pushLi = true
 		}
-		if token == "dd" && lastToken != "p" {
+		if token == "dd" && lastToken != "p" && lastToken != "dd" {
 			mark = ""
 			token = ""
 		}
@@ -104,18 +104,22 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			case "h2set":
 				setTag = "h2"
 			case "dd":
-				setTag = "dt"
-			}
-			if lastToken == "p" {
-				for j := blockStart; j < i; j++ {
-					out[j].Tag = setTag
+				if lastToken != "dt" && lastToken != "dd" {
+					setTag = "dt"
 				}
-			} else {
-				if token == "h2set" {
-					token = "hr"
+			}
+			if setTag != "" {
+				if lastToken == "p" {
+					for j := blockStart; j < i; j++ {
+						out[j].Tag = setTag
+					}
 				} else {
-					mark = ""
-					token = "p"
+					if token == "h2set" {
+						token = "hr"
+					} else {
+						mark = ""
+						token = "p"
+					}
 				}
 			}
 		}
