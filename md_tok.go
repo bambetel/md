@@ -83,8 +83,19 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		if samePrefix && mark == "" && lastToken != "---" && isBreakable(lastToken) {
 			join = true
+			token = lastToken
+			// check if exit pre with no trailing blank line when indent decreased
+			if token == "pre" && !strings.HasPrefix(text, "    ") {
+				token = "p"
+				join = false
+			}
 		} else if token == "" {
-			token = "p"
+			// open pre/p
+			if strings.HasPrefix(text, "    ") {
+				token = "pre"
+			} else {
+				token = "p"
+			}
 		}
 
 		if !join {
@@ -133,6 +144,9 @@ func unescapeLine(l string) string {
 // Tell if an element can be a multiline block, default true, but
 // HR, ### Headings 1..6 and extension DL>DD are always single line
 func isBreakable(tag string) bool {
+	if tag == "h1set" || tag == "h2set" {
+		return false
+	}
 	if tag == "dd" || tag == "hr" {
 		return false
 	}

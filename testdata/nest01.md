@@ -16,6 +16,7 @@ Also blockqutoes are normalized to '>'
     \1. escaped li - this should be merged to previous li
     1. Continued
             this too
+        a. sublist
     2. This too
         should be merged
 
