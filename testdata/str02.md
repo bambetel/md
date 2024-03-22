@@ -57,6 +57,8 @@ Or just 3, 2, 1 spaces
 > Blockquote second paragraph.
 >
 >     Indented code inside
+> > Nice nesting
+> > line merge.
 
 >Test space optionality - no spaces here.
 > Neither here.

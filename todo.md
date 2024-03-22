@@ -32,6 +32,7 @@
     - use MdTok output directly
     - process flow content (?)
     - output AST
+    - white space adjustment when merging input lines
 
 ### Idea: Tags vs tokens.
 

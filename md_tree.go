@@ -1,7 +1,6 @@
 package md
 
 import (
-	"fmt"
 	"strings"
 )
 
@@ -48,11 +47,11 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		currList.Children = append(currList.Children, addNode)
 	}
-	fmt.Printf("MD TREE BEGIN %s\n", rootTag)
+	// fmt.Printf("MD TREE BEGIN %s\n", rootTag)
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
-		fmt.Printf("MdTree line %3d [%s] %v \n", i, l.LimitPrefix(depth), l)
+		// fmt.Printf("MdTree line %3d [%s] %v \n", i, l.LimitPrefix(depth), l)
 		if l.IsBlank() {
 			if currList != nil {
 				if currList.Tag != "dl" {
@@ -65,10 +64,10 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		j := i
 		for j < len(lines) && strings.HasPrefix(lines[j].LimitPrefix(depth), "> ") { // assume normalized to '> '
 			// TODO valid bq mark check `> word` or `>`
-			j += 2
+			j += 1
 		}
 		if j-i > 0 {
-			addChildNode(*MdTree(lines[i:j], depth+4, "blockquote"))
+			addChildNode(*MdTree(lines[i:j], depth+2, "blockquote"))
 			i = j - 1
 			continue
 		}
@@ -94,7 +93,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				if !lines[j].Join {
 					break
 				}
-				fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
+				// fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
 				// TODO block text join wrapped lines here
 				// TODO: trailing ws handling: strip/add
 				joinText += lines[j].Text
@@ -125,14 +124,14 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				// now just checking prefix inside to take into simple item with sublist
 				// TODO: what about nested compound items?
 				j := i + 1
-				fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
+				// fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(lines[i].Prefix, lines[j].Prefix))
 				for j < len(lines) && (lines[j].IsBlank() || prefixInside4s(l.Prefix, lines[j].Prefix)) {
-					fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(l.Prefix, lines[j].Prefix))
+					// fmt.Printf("prefixInside4s(%q, %q) %v\n", l.Prefix, lines[j].Prefix, prefixInside4s(l.Prefix, lines[j].Prefix))
 					j++
 				}
 				if j-i > 0 {
-					fmt.Println("Found simple nesting")
-					fmt.Printf("---- lines: %d-%d %v\n", i, j, lines[i+1:j])
+					// fmt.Println("Found simple nesting")
+					// fmt.Printf("---- lines: %d-%d %v\n", i, j, lines[i+1:j])
 					res := MdTree(lines[i+1:j], depth+4, "ol") // TODO depth detected, list type
 					n.Children = res.Children
 				}
@@ -142,7 +141,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				// TODO prefix offset handling for nesting!!!
 				// NOTE: if li.block line hard-wrapping allowed, line merging should be done before the lookforward below
 				if lines[i+1].IsBlank() && prefixInside4s(l.Prefix, lines[i+2].Prefix) {
-					fmt.Println("--- a compound li")
+					// fmt.Println("--- a compound li")
 					// compound li handling - consumes any adjacent blank lines (!)
 					// while either blank or prefix inside, put to the li.container
 					j := i + 1
@@ -150,9 +149,9 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 						j++
 					}
 					if j-i > 0 {
-						fmt.Printf("Found LI to recurse, lines: %d-%d %v\n", i, j, lines[i+1:j])
+						// fmt.Printf("Found LI to recurse, lines: %d-%d %v\n", i, j, lines[i+1:j])
 						res := MdTree(lines[i+1:j], depth+4, "div")
-						fmt.Printf("MdTree returned (%d): %v\n", len(res.Children), res)
+						// fmt.Printf("MdTree returned (%d): %v\n", len(res.Children), res)
 						n.Children = res.Children
 						i = j - 1
 					}
