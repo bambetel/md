@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 )
 
@@ -50,40 +51,14 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		l := lines[i]
 		mark := ""
 		token := "---"
-		prefixLen := 0
-		prefix := mdPrefix{}
 		pushLi := false
 
 		fmt.Printf("%3d: [%s]\n", i, l)
 		fmt.Printf("[PREV: %q]\n", lastPrefix)
-		// TODO: isolate mdPrefix function
-		// like Common(prefix, prefix) -> n
-		// TODO: tolerate equivalent space indentation (?)
-	match:
-		for _, part := range lastPrefix.parts {
-			switch part.Kind {
-			case mdPrefixLi:
-				if strings.HasPrefix(l[prefixLen:], "    ") {
-					prefixLen += 4
-					prefix.PushLi()
-				} else {
-					break match
-				}
-			case mdPrefixBq:
-				if strings.HasPrefix(l[prefixLen:], ">") {
-					cut := 1
-					if strings.HasPrefix(l[prefixLen:], "> ") {
-						cut = 2
-					}
-					prefixLen += cut
-					prefix.PushBq()
-				} else {
-					break match
-				}
-			default:
-				break match
-			}
-		}
+
+		prefix, prefixLen := lastPrefix.Common(l)
+		// Grow Bq prefix if new present
+		// TODO: bq marker indentation tolerance?
 		for strings.HasPrefix(l[prefixLen:], ">") {
 			cut := 1
 			if strings.HasPrefix(l[prefixLen:], "> ") {
@@ -92,34 +67,21 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			prefix.PushBq()
 			prefixLen += cut
 		}
+
 		fmt.Printf("%d:\n\t%v\nOUT: %v\n\n", i, lastPrefix, prefix)
-		// for {
-		// 	if strings.HasPrefix(l[prefixLen:], ">") {
-		// 		addLen := 1
-		// 		if prefixLen < len(l)-1 {
-		// 			if l[prefixLen+1] == ' ' {
-		// 				addLen++
-		// 			}
-		// 		}
-		// 		fmt.Printf(" BQ; ")
-		// 		prefix.PushBq()
-		// 		prefixLen += addLen
-		// 	} else if strings.HasPrefix(l[prefixLen:], "    ") {
-		// 		fmt.Printf(" LI; ")
-		// 		prefix.PushLi()
-		// 		prefixLen += 4
-		// 	} else {
-		// 		break
-		// 	}
-		// }
 		fmt.Println()
 
 		text := l[prefixLen:]
+		cutLine, cut := lineTolerance(text)
 		if isBlankLine(text) {
 			text = ""
 			goto blank
 		}
 		// Separately because can have container
+		if cut {
+			fmt.Printf(`Cut line: "%s"->"%s"\n`, text, cutLine)
+			text = cutLine
+		}
 		if mark, pushLi = isLiBegin(text); pushLi {
 			text = l[prefixLen+len(mark):]
 		}
@@ -134,7 +96,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			lastPrefix.PushLi()
 		}
 	blank:
-		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text + "@" + lastPrefix.String()}
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text}
 	}
 
 	return out
@@ -143,6 +105,21 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 func isLiBegin(s string) (string, bool) {
 	mark, token := getLineMark(s)
 	return mark, strings.HasPrefix(token, "li")
+}
+
+var reTolerate3Sp = regexp.MustCompile("^ {0,3}\\S")
+
+func lineTolerance(s string) (string, bool) {
+	cut := 0
+	if reTolerate3Sp.MatchString(s) {
+		for ; cut < len(s); cut++ {
+			if s[cut] != ' ' {
+				break
+			}
+		}
+		return s[cut:], cut > 0
+	}
+	return "", false
 }
 
 func unescapeLine(l string) string {
