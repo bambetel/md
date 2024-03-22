@@ -4,6 +4,9 @@
 
 ### Fenced code support
 
+- fence is 3+ characters
+- closing fence is at least same length of same character
+
 ### List types
 
 - separate lists if different marker?
@@ -177,3 +180,8 @@ Implementation:
     - optional hints
 
 - MdTok - should give enough info for syntax highlighting
+
+## CSS, HTML
+
+- reference lists
+- TODO list/checklist

@@ -92,6 +92,9 @@ and this is a next paragraph.
     Indented text
 
     countinued after a blank line.
+    In the output the blank lines should be incorporated into a single PRE element.
+
+    Which ends here.
 
 1. list item
 2. second list item

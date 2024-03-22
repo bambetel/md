@@ -77,7 +77,16 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			tag = l.Tag
 		}
 		var joinText string
-		if tag == "pre" {
+		if tag == "pre:fence" {
+			for j := i + 1; j < len(lines); j++ {
+				if lines[j].Tag != "pre:Fence" {
+					break
+				}
+				joinText += "\n" + lines[j].Text
+				i++
+			}
+			tag = "pre" // todo pre>code
+		} else if tag == "pre" {
 			for j := i + 1; j < len(lines); j++ {
 				if lines[j].Tag != "pre" {
 					break
@@ -85,7 +94,6 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				joinText += "\n" + lines[j].Text
 				i++
 			}
-
 		} else { // regular block - normalize ws
 			// JOIN next lines if needed, advance i to tell next block
 			// TODO: check if needs isBreakable checks

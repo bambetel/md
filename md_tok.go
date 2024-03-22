@@ -48,6 +48,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	lastPrefix := mdPrefix{}
 	lastToken := "---"
 	blockStart := 0
+	literal := false
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -57,8 +58,19 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		join := false
 
 		prefix, prefixLen := lastPrefix.Common(l)
+		samePrefix := lastPrefix.Equals(prefix)
+		if literal && samePrefix {
+			out[i] = mdLine{Nr: i, Tag: "pre:fence", Text: l[prefixLen:], Prefix: l[:prefixLen], Join: true}
+			if strings.Index(l, "```") != -1 || strings.Index(l, "~~~") != -1 { // TODO: match actuall full sequence
+				literal = false
+			}
+			continue
+		} else {
+			literal = false
+		}
+
 		prefixLen += prefix.AppendBqs(l[prefixLen:])
-		samePrefix := lastPrefix.Equals(prefix) || lastPrefix.HasPrefix(prefix) && lastPrefix.PeekKind() == mdPrefixLi
+		samePrefix = samePrefix || lastPrefix.HasPrefix(prefix) && lastPrefix.PeekKind() == mdPrefixLi
 
 		// if samePrefix {
 		// 	fmt.Printf("%3d: prefix merged: [%v]==[%v]\n", i, lastPrefix, prefix)
@@ -72,6 +84,8 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		if mark, token = getLineMark(text); strings.HasPrefix(token, "li") {
 			pushLi = true
 		}
+		literal = token == "pre:fence"
+
 		if token == "dd" && lastToken != "p" && lastToken != "dd" {
 			mark = ""
 			token = ""
