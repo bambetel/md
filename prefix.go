@@ -70,6 +70,9 @@ func (mp *mdPrefix) EqualsN(other mdPrefix, n int) bool {
 	}
 	return true
 }
+func (mp *mdPrefix) HasPrefix(other mdPrefix) bool {
+	return mp.EqualsN(other, other.Len())
+}
 
 // Get the longest possible common prefix for mp and the string
 // not in terms of apparent text columns but logical containers,

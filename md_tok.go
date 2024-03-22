@@ -58,7 +58,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		prefix, prefixLen := lastPrefix.Common(l)
 		prefixLen += prefix.AppendBqs(l[prefixLen:])
-		samePrefix := lastPrefix.Equals(prefix) || lastPrefix.EqualsN(prefix, prefix.Len()) && lastPrefix.PeekKind() == mdPrefixLi
+		samePrefix := lastPrefix.Equals(prefix) || lastPrefix.HasPrefix(prefix) && lastPrefix.PeekKind() == mdPrefixLi
 
 		// if samePrefix {
 		// 	fmt.Printf("%3d: prefix merged: [%v]==[%v]\n", i, lastPrefix, prefix)

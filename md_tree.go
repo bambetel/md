@@ -96,7 +96,7 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 				// fmt.Printf("JOIN TEXT %d %s\n", i, lines[j].Text)
 				// TODO block text join wrapped lines here
 				// TODO: trailing ws handling: strip/add
-				joinText += lines[j].Text
+				joinText += " " + lines[j].Text
 				i++
 			}
 		}
