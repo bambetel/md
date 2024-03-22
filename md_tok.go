@@ -47,6 +47,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 	lastPrefix := mdPrefix{}
 	lastToken := "---"
+	blockStart := 0
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -82,19 +83,23 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		if samePrefix && mark == "" && lastToken != "---" && isBreakable(lastToken) {
 			join = true
-		}
-		if token == "" {
+		} else if token == "" {
 			token = "p"
 		}
 
-		lastPrefix = prefix
-		if pushLi {
-			lastPrefix.PushLi()
+		if !join {
+			lastPrefix = prefix
+			if pushLi {
+				lastPrefix.PushLi()
+			}
 		}
 	blank:
 		text = unescapeLine(l[prefixLen+cutTolerance+len(mark):]) + fmt.Sprintf(" cut=%d", cutTolerance)
 		lastToken = token
-		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text, Join: join}
+		if !join {
+			blockStart = i
+		}
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text + fmt.Sprintf("[%d]", blockStart), Join: join}
 	}
 
 	return out

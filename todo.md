@@ -2,6 +2,15 @@
 
 ## Current
 
+### Prefix recognition
+
+- spaces go in equal fours (relation to tabstop?)
+- blockquote markers are normalized to '>', but if there is a trailing space,
+  it is skipped.
+- tolerate up to 3 spaces before
+    - block marker
+    - blockquote marker
+
 ### Interface MdTok -> MdTree (and MdFlow TODO)
 
 - Separation of concerns

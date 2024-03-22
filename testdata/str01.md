@@ -133,8 +133,6 @@ Edge
 case
 : A situation provoked to prove Markdown dumb
 
-
-
 [1]: Reference
 
     Can have also a container, just like a li.
