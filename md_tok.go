@@ -37,9 +37,6 @@ func (ml *mdLine) LimitPrefix(l int) string {
 
 func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	scanner := bufio.NewScanner(r)
-	// TODO: li prefix vs bq prefix
-
-	// i - input line index
 	lines := make([]string, 0, 32)
 	for i := 0; scanner.Scan(); i++ {
 		lines = append(lines, normalizeWS(scanner.Text(), tabstop))
@@ -47,244 +44,105 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 	out := make([]mdLine, len(lines))
 
-	lastToken := "" // actually: last block kind
-	lastPrefix := ""
-	lastChild := ""
-	lastBlock := 0
+	lastPrefix := mdPrefix{}
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
+		mark := ""
+		token := "---"
 		prefixLen := 0
+		prefix := mdPrefix{}
+		pushLi := false
 
-		// de novo prefix
-		if len(l) == 0 {
-			fmt.Printf("%3d: NULL LINE @@@@@@@@@@\n", i+1)
-			out[i] = mdLine{Nr: i}
-			lastToken = ""
-			continue
-		}
-		if len(l) > 0 { // condition order, nesting?
-			keep := 0 // common prefix length with lastPrefix; keep it
-			for ; keep < len(l) && keep < len(lastChild); keep++ {
-				if l[keep] != lastChild[keep] {
-					if keep > len(lastChild)-4 {
-						keep = max(0, len(lastChild)-4)
-					}
-					break
-				}
-			}
-			prefixLen = keep
-			for ; prefixLen < len(l); prefixLen++ {
+		fmt.Printf("%3d: [%s]\n", i, l)
+		fmt.Printf("[PREV: %q]\n", lastPrefix)
+		// TODO: isolate mdPrefix function
+		// like Common(prefix, prefix) -> n
+		// TODO: tolerate equivalent space indentation (?)
+	match:
+		for _, part := range lastPrefix.parts {
+			switch part.Kind {
+			case mdPrefixLi:
 				if strings.HasPrefix(l[prefixLen:], "    ") {
-					break
-				}
-				if l[prefixLen] == ' ' {
-					continue
-				}
-				if l[prefixLen] == '>' {
-					continue
+					prefixLen += 4
+					prefix.PushLi()
 				} else {
-					break
+					break match
 				}
-			}
-			if prefixLen == len(l) {
-				// blank line
-				// update last prefix when differs in terms of '>' (?)
-				// TODO: when update lastToken?
-				fmt.Printf("%3d: %s @@@@@@@@@@\n", i+1, l[:prefixLen])
-				out[i] = mdLine{Nr: i, Prefix: l}
-				lastToken = "" // keep container, reset block
-				continue
-			}
-			// cutting trailing spaces -
-			// TODO: (here?) if after a li, 4 are acceptable!
-			checkStart := keep
-			// if strings.HasPrefix(prefix, lastPrefix) {
-			// 	checkStart = len(lastPrefix)
-			// }
-			if prefixLen > checkStart {
-				for prefixLen >= checkStart+1 {
-					if l[prefixLen-1] == ' ' {
-						prefixLen--
-					} else {
-						break
+			case mdPrefixBq:
+				if strings.HasPrefix(l[prefixLen:], ">") {
+					cut := 1
+					if strings.HasPrefix(l[prefixLen:], "> ") {
+						cut = 2
 					}
+					prefixLen += cut
+					prefix.PushBq()
+				} else {
+					break match
 				}
+			default:
+				break match
 			}
 		}
-		if prefixLen > len(lastPrefix) {
-			fmt.Printf("DETECTED INSIDE:\n   OUT: %s@\n   IN:  %s@\n\n", lastPrefix, l[:prefixLen])
-		}
-		if prefixLen > 0 {
-			if l[prefixLen-1] == '>' && prefixLen < len(l) {
-				if l[prefixLen] == ' ' {
-					prefixLen++
-				}
+		for strings.HasPrefix(l[prefixLen:], ">") {
+			cut := 1
+			if strings.HasPrefix(l[prefixLen:], "> ") {
+				cut = 2
 			}
+			prefix.PushBq()
+			prefixLen += cut
 		}
-
-		if len(strings.TrimSpace(l[prefixLen:])) == 0 {
-			// empty line left; no special meaning
-			prefix := l[:prefixLen]
-			lastPrefix = prefix
-			lastChild = prefix
-			lastBlock = i
-			lastToken = ""
-			fmt.Printf("TEST001\n")
-			out[i] = mdLine{Nr: i, Prefix: l}
-			continue
-		}
-		// TODO: should pre lines be marked as joined here at all?
-		join := false
-
-		// allow up to 3 spaces in front of each element; trim them
-		cutSpaces := 0
-		test := l[prefixLen:] // TODO: nicer:
-		if (strings.HasPrefix(test, " ") || strings.HasPrefix(test, "  ") || strings.HasPrefix(test, "  ")) && !strings.HasPrefix(test, "    ") {
-			for ; cutSpaces < 3; cutSpaces++ {
-				if test[cutSpaces] != ' ' {
-					break
-				}
-			}
-		}
-
-		mark, token := getLineMark(l[prefixLen+cutSpaces:])
-		if cutSpaces > 0 {
-			fmt.Printf("CUT %d: (%s)%s$\n", cutSpaces, mark, token)
-		}
-
-		if token == "pre:fence" {
-			fmt.Printf("FENCE: %s\n", lines[i])
-			out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Marker: lines[i][prefixLen:], Join: false}
-			prefix := lines[i][:prefixLen]
-			for i++; i < len(lines); i++ {
-				if len(lines[i]) < prefixLen {
-					i--
-					break // not closed!
-				}
-				if !strings.HasPrefix(lines[i], prefix) {
-					i--
-					break // not closed!
-				}
-				if strings.HasPrefix(lines[i][prefixLen:], mark) {
-					out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Text: "", Join: true}
-					break // closing
-				}
-				out[i] = mdLine{Nr: i, Prefix: lines[i][:prefixLen], Tag: token, Text: lines[i][prefixLen:], Join: true}
-			}
-			lastToken = ""
-			continue
-		}
-
-		// special fixes - look back
-		setTag := ""
-		if token == "h1set" {
-			if lastToken == "p" {
-				setTag = "h1"
-			} else {
-				mark = ""
-				token = ""
-			}
-		} else if token == "h2set" {
-			if lastToken == "p" {
-				setTag = "h2"
-				token = "h2" // patch
-			} else {
-				token = "hr" // patch
-			}
-		} else if token == "dd" {
-			if lastToken == "p" {
-				setTag = "dt"
-			} else if lastToken != "dt" {
-				token = ""
-				mark = ""
-			}
-		}
-		if setTag != "" { // loop for edge cases; reasonable use would be a single line in case of h1, h2, dt
-			for j := i - 1; j >= 0 && j >= lastBlock; j-- {
-				out[j].Tag = setTag
-				if j != lastBlock {
-					out[j].Join = true
-				}
-			}
-			join = true
-			lastToken = ""
-			goto joinSet
-		}
-
-		if mark != "" ||
-			prefixLen < len(lastPrefix) ||
-			len(strings.TrimRight(l[:prefixLen], " ")) != len(strings.TrimRight(lastPrefix, " ")) ||
-			lastToken == "" {
-			// new block
-			join = false
-		} else if mark == "" && lastToken != "" {
-			join = true
-		}
-		if !join && token == "" {
-			token = "p"
-		}
-		if strings.HasPrefix(l[prefixLen:], "    ") {
-			if !join && token == "p" {
-				token = "pre"
-			} else if lastToken == "pre" {
-				join = true
-				token = "pre"
-			}
-		} else if lastToken == "pre" {
-			token = "p"
-			join = false
-		}
-	joinSet:
-
-		// if (lastToken == "" || lastToken == "pre") && strings.HasPrefix(l[prefixLen:], "    ") {
-		// 	token = "pre"
-		// }
-		if join && token == "" {
-			token = lastToken
-		}
-		prefix := l[:prefixLen]
-
-		cutLen := min(len(l), prefixLen+cutSpaces+len(mark))
-		text := unescapeLine(l[cutLen:])
-		fmt.Printf("%3d: %s@%s   last=%s\n", i+1, prefix, text, lastToken)
-
-		// // TODO: block marking specification
-		// if token == "" && strings.HasPrefix(text, "    ") && (lastToken == "" || lastToken == "pre") {
-		// 	token = "pre"
-		// } else if join && token == "" {
-		// 	join = false
-		// 	token = "p"
-
-		// save lastToken here
-		if !isBreakable(token) {
-			lastToken = ""
-		} else if !join {
-			lastToken = token
-		}
-		// }
-		// if token == "" {
-		// 	if strings.HasPrefix(text, "    ") {
-		// 		token = "pre"
+		fmt.Printf("%d:\n\t%v\nOUT: %v\n\n", i, lastPrefix, prefix)
+		// for {
+		// 	if strings.HasPrefix(l[prefixLen:], ">") {
+		// 		addLen := 1
+		// 		if prefixLen < len(l)-1 {
+		// 			if l[prefixLen+1] == ' ' {
+		// 				addLen++
+		// 			}
+		// 		}
+		// 		fmt.Printf(" BQ; ")
+		// 		prefix.PushBq()
+		// 		prefixLen += addLen
+		// 	} else if strings.HasPrefix(l[prefixLen:], "    ") {
+		// 		fmt.Printf(" LI; ")
+		// 		prefix.PushLi()
+		// 		prefixLen += 4
 		// 	} else {
-		// 		token = "p"
+		// 		break
 		// 	}
 		// }
-		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix, Text: text, Join: join}
+		fmt.Println()
 
-		if !join {
-			// new block
-			lastPrefix = prefix
-			if strings.HasPrefix(token, "li") {
-				lastChild = prefix + "    "
-			} else {
-				lastChild = prefix
-			}
-			lastBlock = i
+		text := l[prefixLen:]
+		if isBlankLine(text) {
+			text = ""
+			goto blank
 		}
+		// Separately because can have container
+		if mark, pushLi = isLiBegin(text); pushLi {
+			text = l[prefixLen+len(mark):]
+		}
+
+		// check if withing the last prefix
+		// no change - keep block
+		// any change - new block
+
+		token = "P"
+		lastPrefix = prefix
+		if pushLi {
+			lastPrefix.PushLi()
+		}
+	blank:
+		out[i] = mdLine{Nr: i, Tag: token, Marker: mark, Prefix: prefix.String(), Text: text + "@" + lastPrefix.String()}
 	}
 
 	return out
+}
+
+func isLiBegin(s string) (string, bool) {
+	mark, token := getLineMark(s)
+	return mark, strings.HasPrefix(token, "li")
 }
 
 func unescapeLine(l string) string {
