@@ -35,6 +35,14 @@ A wrapped paragraph with
 underline should also yield a H2!
 ---------
 
+The one below is just HR
+
+---
+
+The one just some equal signs
+
+========
+
 Or just 3, 2, 1 spaces
    like here, however no apparent marker allowed.
 
@@ -155,6 +163,11 @@ Even more
          But is a heading...
 ---
 
+just
+: no blank lines
+second term
+: second definition
+
 : honk and quack
 Messy geese
 
@@ -164,7 +177,7 @@ Messy geese
 line merging still works!
 
 1. Funny case - thing below should be merged
-: definition
+: definition - should be recycled as a part of a li
 : this is not a definition, second joined line
 
 1. Funny case - thing below should be merged

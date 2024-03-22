@@ -55,6 +55,30 @@ func (mp *mdPrefix) PushBq() {
 	mp.parts = append(mp.parts, mdPrefixPart{mdPrefixBq, "> "}) // TODO: `> ` OR `>`?
 }
 
+func (mp *mdPrefix) Equals(other mdPrefix) bool {
+	if len(mp.parts) != len(other.parts) {
+		return false
+	}
+	for i := range mp.parts {
+		if mp.parts[i].Kind != other.parts[i].Kind {
+			return false
+		}
+	}
+	return true
+}
+
+func (mp *mdPrefix) EqualsN(other mdPrefix, n int) bool {
+	if len(mp.parts) < n || len(other.parts) < n {
+		return false
+	}
+	for i := 0; i < n; i++ {
+		if mp.parts[i].Kind != other.parts[i].Kind {
+			return false
+		}
+	}
+	return true
+}
+
 func (mp *mdPrefix) Common(l string) (prefix mdPrefix, prefixLen int) {
 match:
 	for _, part := range mp.parts {

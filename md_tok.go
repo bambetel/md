@@ -57,7 +57,6 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		join := false
 
 		prefix, prefixLen := lastPrefix.Common(l)
-		samePrefix := len(prefix.parts) == len(lastPrefix.parts) || len(prefix.parts) == len(lastPrefix.parts)-1 && lastPrefix.PeekKind() == mdPrefixLi
 		// Grow Bq prefix if new present
 		// TODO: bq marker indentation tolerance?
 		for strings.HasPrefix(l[prefixLen:], ">") {
@@ -68,6 +67,10 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			prefix.PushBq()
 			prefixLen += cut
 		}
+		samePrefix := lastPrefix.Equals(prefix) || lastPrefix.EqualsN(prefix, lastPrefix.Len()-1) && lastPrefix.PeekKind() == mdPrefixLi
+		if samePrefix {
+			fmt.Printf("%3d: prefix merged: [%v]==[%v]\n", i, lastPrefix, prefix)
+		}
 
 		text, cutTolerance := lineTolerance(l[prefixLen:])
 		if isBlankLine(text) {
@@ -77,9 +80,12 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 		if mark, token = getLineMark(text); strings.HasPrefix(token, "li") {
 			pushLi = true
 		}
+		if token == "dd" && lastToken != "p" {
+			mark = ""
+			token = ""
+		}
 
-		fmt.Printf("%d: [%s]\n\t%v\n\t%v --> %v\n\n", i, l, lastPrefix, prefix, samePrefix)
-		fmt.Println()
+		// fmt.Printf("%d: [%s]\n\t%v\n\t%v --> %v\n\n", i, l, lastPrefix, prefix, samePrefix)
 
 		if samePrefix && mark == "" && lastToken != "---" && isBreakable(lastToken) {
 			join = true
@@ -98,6 +104,30 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			}
 		}
 
+		if token == "h1set" || token == "h2set" || token == "dd" {
+			setTag := ""
+			switch token {
+			case "h1set":
+				setTag = "h1"
+			case "h2set":
+				setTag = "h2"
+			case "dd":
+				setTag = "dt"
+			}
+			if lastToken == "p" {
+				for j := blockStart; j < i; j++ {
+					out[j].Tag = setTag
+				}
+			} else {
+				if token == "h2set" {
+					token = "hr"
+				} else {
+					mark = ""
+					token = "p"
+				}
+			}
+		}
+
 		if !join {
 			lastPrefix = prefix
 			if pushLi {
@@ -105,7 +135,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			}
 		}
 	blank:
-		text = unescapeLine(l[prefixLen+cutTolerance+len(mark):]) + fmt.Sprintf(" cut=%d", cutTolerance)
+		text = unescapeLine(l[prefixLen+cutTolerance+len(mark):]) // + fmt.Sprintf(" cut=%d", cutTolerance)
 		lastToken = token
 		if !join {
 			blockStart = i
