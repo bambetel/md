@@ -78,8 +78,9 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 		}
 		var joinText string
 		if tag == "pre:fence" {
+			// TODO: don't output anything from marker lines
 			for j := i + 1; j < len(lines); j++ {
-				if lines[j].Tag != "pre:Fence" {
+				if lines[j].Tag != "pre:fence" {
 					break
 				}
 				joinText += "\n" + lines[j].Text
@@ -88,7 +89,8 @@ func MdTree(lines []mdLine, depth int, rootTag string) *MdNode {
 			tag = "pre" // todo pre>code
 		} else if tag == "pre" {
 			for j := i + 1; j < len(lines); j++ {
-				if lines[j].Tag != "pre" {
+				// handling trailing blank line?
+				if lines[j].Tag != "pre" && lines[j].Tag != "---" {
 					break
 				}
 				joinText += "\n" + lines[j].Text

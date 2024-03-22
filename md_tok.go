@@ -48,7 +48,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 	lastPrefix := mdPrefix{}
 	lastToken := "---"
 	blockStart := 0
-	literal := false
+	literal := ""
 
 	for i := 0; i < len(lines); i++ {
 		l := lines[i]
@@ -59,14 +59,16 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		prefix, prefixLen := lastPrefix.Common(l)
 		samePrefix := lastPrefix.Equals(prefix)
-		if literal && samePrefix {
-			out[i] = mdLine{Nr: i, Tag: "pre:fence", Text: l[prefixLen:], Prefix: l[:prefixLen], Join: true}
-			if strings.Index(l, "```") != -1 || strings.Index(l, "~~~") != -1 { // TODO: match actuall full sequence
-				literal = false
+		if literal != "" && samePrefix {
+			if strings.HasPrefix(strings.TrimSpace(l[prefixLen:]), literal) {
+				mark = literal // additional content will be ignored
+				literal = ""
 			}
+			out[i] = mdLine{Nr: i, Tag: "pre:fence", Marker: mark, Text: l[prefixLen+len(mark):], Prefix: l[:prefixLen], Join: true}
+			lastToken = "pre:fence"
 			continue
 		} else {
-			literal = false
+			literal = ""
 		}
 
 		prefixLen += prefix.AppendBqs(l[prefixLen:])
@@ -81,10 +83,13 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			token = "---"
 			goto blank
 		}
+		// TODO: handling lines with mark only - to literal text?
 		if mark, token = getLineMark(text); strings.HasPrefix(token, "li") {
 			pushLi = true
 		}
-		literal = token == "pre:fence"
+		if token == "pre:fence" {
+			literal = mark
+		}
 
 		if token == "dd" && lastToken != "p" && lastToken != "dd" {
 			mark = ""
@@ -93,7 +98,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 
 		// fmt.Printf("%d: [%s]\n\t%v\n\t%v --> %v\n\n", i, l, lastPrefix, prefix, samePrefix)
 
-		if samePrefix && mark == "" && lastToken != "---" && isBreakable(lastToken) {
+		if samePrefix && mark == "" && lastToken != "---" && lastToken != "pre:fence" && isBreakable(lastToken) {
 			join = true
 			token = lastToken
 			// check if exit pre with no trailing blank line when indent decreased
@@ -105,6 +110,7 @@ func MdTok(r io.Reader, parentPrefix string) []mdLine {
 			// open pre/p
 			if strings.HasPrefix(text, "    ") {
 				token = "pre"
+				mark = "    " // a hack to trim indentation
 			} else {
 				token = "p"
 			}
@@ -204,10 +210,10 @@ func getLineMark(line string) (mark string, tag string) {
 		return "", ""
 	}
 	// TODO: allow optional beginning 1-3 spaces?
-
+	if m := reFence.FindString(line); len(m) > 0 {
+		return m, "pre:fence"
+	}
 	switch {
-	case strings.HasPrefix(line, "```"), strings.HasPrefix(line, "~~~"):
-		return line[0:3], "pre:fence"
 	case reSettextUnderH1.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
 		return line, "h1set"
 	case reSettextUnderH2.MatchString(line): // TODO: TEST settext h1 if only '=' and after a regular p candidate
